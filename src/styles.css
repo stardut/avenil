@@ -178,12 +178,14 @@ h1, h2, h3, p { margin: 0; }
 .demo-dot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--accent); }
 .icon-button { width: 34px; height: 34px; display: inline-grid; place-items: center; padding: 0; color: var(--text-muted); background: transparent; border-radius: 8px; transition: color var(--fast) var(--ease), background-color var(--fast) var(--ease); }
 .icon-button:hover { color: var(--text); background: var(--surface-hover); }
-.settings-content { padding: 24px; }
+.settings-content { display: flex; flex-direction: column; gap: 16px; padding: 24px; }
 .theme-control { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
 .theme-description { display: flex; flex-direction: column; gap: 5px; }
 .theme-description strong { color: var(--text); font-size: 13px; font-weight: 650; }
 .theme-description small { color: var(--text-muted); font-size: 12px; }
 .theme-control .beui-select { width: 132px; flex: none; }
+.language-control { padding-top: 16px; border-top: 1px solid var(--border); }
+.language-control .beui-select { width: 156px; }
 
 .workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: 224px minmax(0, 1fr); overflow: hidden; }
 .sidebar { display: flex; min-height: 0; flex-direction: column; padding: 16px 12px 14px; border-right: 1px solid var(--border); background: var(--sidebar); }

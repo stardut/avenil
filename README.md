@@ -8,6 +8,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/stardut/avenil/releases/latest">Download</a> ·
   <a href="#get-started">Get started</a> ·
   <a href="#why-avenil">Why Avenil</a> ·
   <a href="docs/USAGE.md">Guide</a> ·
@@ -48,7 +49,7 @@ Keep your editor for writing code. Let Avenil handle the everyday work of runnin
 
 ## Get started
 
-Avenil is an early preview. The supported starting point is a local source build; signed and notarized downloads are a future release milestone.
+Avenil is an early preview. Each pushed `vMAJOR.MINOR.PATCH` tag creates a GitHub Release with a macOS DMG automatically. Developer ID signing and Apple notarization remain future release work.
 
 ### Requirements
 
@@ -92,7 +93,22 @@ Open **http://127.0.0.1:1420/?preview=1** for an interactive demo. Demo changes 
 npm run tauri build
 ```
 
-The default build produces `src-tauri/target/release/bundle/macos/Avenil.app`. Local builds are not developer-signed or notarized.
+The default build produces a DMG under `src-tauri/target/release/bundle/dmg/`. Open the DMG and drag Avenil to Applications. The app is ad-hoc signed; local builds are not Developer ID signed or notarized.
+
+### Install a GitHub release
+
+1. Open the [latest GitHub Release](https://github.com/stardut/avenil/releases/latest) and download the `.dmg` asset for Apple Silicon.
+2. Open the disk image and drag **Avenil** to **Applications**.
+3. Eject the disk image, then launch Avenil from **Applications**.
+
+To publish a release, first make sure the version in `package.json`, `package-lock.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml` is the same, then push a matching tag:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The `Release macOS app` workflow validates the tag and version, builds the Apple Silicon DMG, and publishes it to that tag's GitHub Release. The CI build uses an ad-hoc signature because this repository does not yet provide an Apple Developer ID certificate. macOS may still require the first launch to be approved in **Privacy & Security**.
 
 ## How it behaves
 
@@ -111,7 +127,8 @@ See the [usage guide](docs/USAGE.md) for configuration storage, logging, import 
 
 The focus is a dependable, approachable home for local services. These are proposed next milestones, not shipped features or release commitments:
 
-- [ ] Signed and notarized macOS releases, with a repeatable release process.
+- [x] Repeatable Apple Silicon DMG releases triggered by version tags.
+- [ ] Developer ID signed and notarized macOS releases.
 - [ ] An English interface and a maintainable localization structure.
 - [ ] Better first-run guidance and actionable startup errors.
 - [ ] Broader IDE import coverage, driven by reproducible examples.

@@ -1,0 +1,45 @@
+# Agent Instructions
+
+## Pull Request Delivery
+
+Use the `my-git-mr` workflow whenever the user asks to open, submit, deliver, publish, release, or update a GitHub pull request or GitLab merge request.
+
+### Route and target
+
+1. Inspect the worktree with `git status --porcelain`.
+2. If there are uncommitted changes, run `my-git-commit` in the same workflow. Confirm that its Change Brief is present and its Self-Check is complete before pushing.
+3. Check the source branch. Use a feature branch for delivery; do not push directly from `master`, `main`, `dev`, or `release/backend`.
+4. Select the remote in this order: `up` if configured, otherwise `origin`. Stop if neither exists.
+5. Identify GitHub or GitLab from the selected remote URL only. Use `gh` for GitHub and `glab` for GitLab, and verify authentication and repository access. If automatic repository detection fails, pass the repository explicitly.
+6. Fetch and inspect refs through the selected remote only.
+7. Resolve the target branch as follows:
+   - A production request (`publish`, `release`, `go live`, or an equivalent request) targets `main` when the selected remote has `main`; otherwise it targets `master`.
+   - An explicit request for `dev` targets `dev`.
+   - A normal test or review request targets this repository's default test branch, `dev`.
+8. List every open PR/MR from the source branch before creating anything. Update an existing review that targets the requested branch. If another open review from the same source branch targets a different branch, stop and ask the user to resolve it first. Create a new review only when no open review exists.
+
+### Quality gate
+
+- Calculate the review diff against the selected remote target branch; the review page diff is the source of truth.
+- Run the repository's applicable lint, build, compile, and validation commands described in `CONTRIBUTING.md`. Also run `git diff --check` when code changes are present.
+- Inspect the diff for unhandled critical paths, accidental debug code, `TODO`/`FIXME` markers, unjustified magic values, and unnecessarily deep nesting.
+- Stop and report critical correctness or safety problems before pushing. Record minor issues in the final report.
+
+### English PR metadata
+
+All human-readable PR/MR metadata must be written in English, including the title, description, checklist items, issue relationship text, and status labels.
+
+- With a task from the PMS, use `[{Task ID}] {title}`; add `[Production]` for a production review.
+- With a local task, use `{type}: {title}`; add `[Production]` for a production review.
+- Without a task, use `{type}({scope}): {description}`; add `[Production]` for a production review.
+- Keep the description limited to the current review diff. Use these headings on separate lines: `## Summary`, `## Changes`, `## Test Plan`, and `## Related`.
+- Submit the description as real LF-separated Markdown. After creating or updating the review, read the actual remote description and verify that it contains no literal `\n`, all required headings, and only changes supported by the current diff.
+- For test targets, use `Related to` for applicable issues and never use `Closes`, `Fixes`, or `Resolves`.
+- For production targets, use `Related to` for the PRD issue and use `Closes` only for explicitly listed `closeIssues`. Never close the PRD issue. If work issues exist but `closeIssues` is empty, stop and ask which work issues should be closed. Never invent issue numbers.
+
+### Push and task metadata
+
+- Push only after the worktree, branch, remote, target, quality gate, Change Brief, and Self-Check requirements pass.
+- After a successful create or update, update task frontmatter only when there is a safe, unique matching task file. Change frontmatter fields only; do not edit the task body, progress history, business sections, or checkboxes. If no safe unique task exists, report that the update was skipped and why.
+- Verify the final review URL, source-to-target branches, actual diff, English title and description, and issue-closing semantics before reporting success.
+- This workflow creates or updates a PR/MR; it does not merge the review or archive the task.

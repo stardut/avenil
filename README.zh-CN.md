@@ -5,6 +5,7 @@
 <p align="center">让本地服务各就其位。<br />在一个桌面工作区里，启动服务、查看日志、掌握运行状态。</p>
 
 <p align="center">
+  <a href="https://github.com/stardut/avenil/releases/latest">下载最新版本</a> ·
   <a href="#开始使用">开始使用</a> ·
   <a href="docs/USAGE.md">使用指南</a> ·
   <a href="CONTRIBUTING.md">参与贡献</a> ·
@@ -42,7 +43,7 @@ Avenil 把它们放到同一个工作区。保存工作目录和启动命令，�
 
 ## 开始使用
 
-当前是早期预览版本，以本地源码构建为起点。签名、公证后的公开安装包属于后续发布目标。
+当前是早期预览版本。推送 `v主版本.次版本.修订版本` tag 后，会自动创建包含 macOS DMG 的 GitHub Release；Developer ID 签名与 Apple 公证仍是后续目标。
 
 ### 环境要求
 
@@ -80,7 +81,22 @@ npm run dev
 npm run tauri build
 ```
 
-默认产物：`src-tauri/target/release/bundle/macos/Avenil.app`。本地构建未做开发者签名与公证。
+默认产物位于 `src-tauri/target/release/bundle/dmg/`。打开 DMG 后，将 Avenil 拖入“应用程序”即可安装。本地构建使用 ad-hoc 签名，未使用 Developer ID 签名或 Apple 公证。
+
+### 安装 GitHub Release
+
+1. 打开[最新 GitHub Release](https://github.com/stardut/avenil/releases/latest)，下载适用于 Apple Silicon 的 `.dmg` 文件。
+2. 打开磁盘映像，将 **Avenil** 拖入“**应用程序**”。
+3. 推出磁盘映像，然后从“应用程序”启动 Avenil。
+
+发布版本前，先确保 `package.json`、`package-lock.json`、`src-tauri/tauri.conf.json` 和 `src-tauri/Cargo.toml` 中的版本号一致，再推送匹配的 tag：
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+`Release macOS app` 工作流会校验 tag 与版本号，构建 Apple Silicon DMG，并将其发布到该 tag 对应的 GitHub Release。由于仓库当前没有 Apple Developer ID 证书，CI 使用 ad-hoc 签名；macOS 首次启动时仍可能需要在“系统设置 → 隐私与安全性”中手动允许。
 
 ## 使用边界
 
@@ -97,7 +113,8 @@ npm run tauri build
 
 以下是待推进的方向，尚未实现，也不代表发布日期承诺：
 
-- [ ] macOS 签名、公证安装包与可重复的发布流程。
+- [x] 通过版本 tag 触发、可重复的 Apple Silicon DMG 发布流程。
+- [ ] Developer ID 签名与 Apple 公证的 macOS 发布包。
 - [ ] 英文界面与可维护的多语言结构。
 - [ ] 更清晰的首次使用引导和启动错误提示。
 - [ ] 根据可复现案例扩大 IDE 配置导入范围。

@@ -10,7 +10,6 @@ import {
   ChevronDown,
   ChevronRight,
   FileJson,
-  FileCode2,
   FolderOpen,
   Gauge,
   Globe2,
@@ -33,6 +32,7 @@ import {
 } from 'lucide-react';
 import { getApi, inTauri, previewMode } from './api';
 import IdeImportDialog from './IdeImportDialog';
+import WorkspaceTransferMenu from './WorkspaceTransferMenu';
 import ThemeControl, { useTheme } from './ThemeControl';
 import BrandMark from './components/BrandMark';
 import { useDialogFocus } from './useDialogFocus';
@@ -61,7 +61,7 @@ import './styles.css';
 
 const api = getApi();
 
-type Filter = 'all' | 'running' | 'stopped' | 'attention';
+type Filter = 'all' | 'running' | 'stopped';
 type PanelTab = 'config' | 'logs' | 'metrics';
 
 const statusMeta: Record<ServiceStatus, { label: string; tone: string; icon: string }> = {
@@ -279,7 +279,7 @@ function App() {
   const visibleServices = useMemo(() => config.services.filter((service) => {
     const snapshot = runtimes[service.id] ?? emptyRuntime(service.id);
     const matchesGroup = selectedGroupId === null || service.groupId === selectedGroupId;
-    const matchesFilter = filter === 'all' || (filter === 'running' && snapshot.status === 'running') || (filter === 'stopped' && ['stopped', 'exited'].includes(snapshot.status)) || (filter === 'attention' && ['failed', 'unknown', 'exited'].includes(snapshot.status));
+    const matchesFilter = filter === 'all' || (filter === 'running' && snapshot.status === 'running') || (filter === 'stopped' && ['stopped', 'exited'].includes(snapshot.status));
     return matchesGroup && matchesFilter;
   }), [config.services, filter, runtimes, selectedGroupId]);
 
@@ -303,10 +303,9 @@ function App() {
   const counts = useMemo(() => config.services.reduce((result, service) => {
     const status = runtimes[service.id]?.status ?? 'stopped';
     if (status === 'running') result.running += 1;
-    if (['failed', 'unknown', 'exited'].includes(status)) result.attention += 1;
     if (['stopped', 'exited'].includes(status)) result.stopped += 1;
     return result;
-  }, { running: 0, stopped: 0, attention: 0 }), [config.services, runtimes]);
+  }, { running: 0, stopped: 0 }), [config.services, runtimes]);
 
   const selectedGroup = selectedGroupId ? groups.find((group) => group.id === selectedGroupId) ?? null : null;
   const groupServices = selectedGroupId ? (servicesByGroup.get(selectedGroupId) ?? []) : visibleServices;
@@ -479,7 +478,6 @@ function App() {
             <NavItem icon={<LayoutList size={16} />} label="全部服务" count={config.services.length} active={selectedGroupId === null && filter === 'all'} onClick={() => { setSelectedGroupId(null); setFilter('all'); }} />
             <NavItem icon={<Activity size={16} />} label="运行中" count={counts.running} active={filter === 'running' && selectedGroupId === null} onClick={() => { setSelectedGroupId(null); setFilter('running'); }} />
             <NavItem icon={<Square size={14} />} label="已停止" count={counts.stopped} active={filter === 'stopped' && selectedGroupId === null} onClick={() => { setSelectedGroupId(null); setFilter('stopped'); }} />
-            <NavItem icon={<AlertCircle size={16} />} label="需关注" count={counts.attention} tone={counts.attention ? 'danger' : undefined} active={filter === 'attention' && selectedGroupId === null} onClick={() => { setSelectedGroupId(null); setFilter('attention'); }} />
           </nav>
           <div className="sidebar-heading groups-heading"><span>项目组</span><Button variant="ghost" size="icon" className="mini-button" aria-label="新建项目组" onClick={() => setGroupEditor({ id: '', name: '', sortOrder: groups.length })}><Plus size={15} /></Button></div>
           <nav className="group-list" aria-label="项目组">
@@ -489,9 +487,11 @@ function App() {
           <div className="sidebar-footer">
             <nav className="workspace-actions" aria-label="工作区操作">
               <Button variant="primary" size="sm" className="sidebar-add-service" onClick={() => setEditor({ service: createService(selectedGroupId), isNew: true })}><Plus size={16} />添加服务</Button>
-              <Button variant="ghost" size="sm" className="sidebar-action" onClick={() => { setIdeImportPreview(null); setIdeImportBusy(false); setIdeImportOpen(true); }}><FileCode2 size={16} />从 IDE 导入</Button>
-              <Button variant="ghost" size="sm" className="sidebar-action" onClick={() => { setImportDialog(null); fileInputRef.current?.click(); }}><ArrowDownToLine size={16} />导入配置</Button>
-              <Button variant="ghost" size="sm" className="sidebar-action" onClick={() => void handleExport()}><ArrowUpFromLine size={16} />导出配置</Button>
+              <WorkspaceTransferMenu
+                onIdeImport={() => { setIdeImportPreview(null); setIdeImportBusy(false); setIdeImportOpen(true); }}
+                onImportConfig={() => { setImportDialog(null); fileInputRef.current?.click(); }}
+                onExportConfig={() => void handleExport()}
+              />
             </nav>
             <input ref={fileInputRef} type="file" accept="application/json,.json" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleFile(file); event.currentTarget.value = ''; }} />
             <div className="sidebar-settings"><Button variant="ghost" size="sm" className="sidebar-action settings-button" type="button" aria-haspopup="dialog" onClick={() => setSettingsOpen(true)}><Settings size={16} /><span>设置</span></Button></div>
@@ -504,7 +504,7 @@ function App() {
             {selectedGroup && <div className="group-actions"><Button variant="ghost" size="sm" className="group-action" disabled={groupActive || !groupServices.length || shutdownState?.phase === 'stopping'} onClick={() => void handleBatch('start')}><Play size={14} />启动全部</Button><Button variant="ghost" size="sm" className="group-action" disabled={groupActive || !groupServices.length || shutdownState?.phase === 'stopping'} onClick={() => void handleBatch('restart')}><RefreshCw size={14} />重启全部</Button><Button variant="ghost" size="sm" className="group-action danger-text" disabled={!groupStopAvailable || groupStopBusy} onClick={() => void handleBatch('stop')}><Square size={13} />停止全部</Button></div>}
           </div>
           {shutdownState?.phase === 'stopping' && <div className="shutdown-strip"><LoaderCircle size={14} className="spin" /><span>正在停止托管服务，暂时不能启动或重启服务。</span></div>}
-          <div className="filterbar"><div className="filter-tabs"><FilterTab label="全部" active={filter === 'all'} onClick={() => setFilter('all')} /><FilterTab label="运行中" active={filter === 'running'} onClick={() => setFilter('running')} /><FilterTab label="已停止" active={filter === 'stopped'} onClick={() => setFilter('stopped')} /><FilterTab label="需关注" active={filter === 'attention'} onClick={() => setFilter('attention')} /></div><span className="list-count">{visibleServices.length} 个结果</span></div>
+          <div className="filterbar"><div className="filter-tabs"><FilterTab label="全部" active={filter === 'all'} onClick={() => setFilter('all')} /><FilterTab label="运行中" active={filter === 'running'} onClick={() => setFilter('running')} /><FilterTab label="已停止" active={filter === 'stopped'} onClick={() => setFilter('stopped')} /></div><span className="list-count">{visibleServices.length} 个结果</span></div>
           <div className="service-list" tabIndex={-1}>
             {loading ? <LoadingState /> : !visibleServices.length ? <EmptyState hasConfig={config.services.length > 0} onAdd={() => setEditor({ service: createService(selectedGroupId), isNew: true })} onClear={() => { setFilter('all'); setSelectedGroupId(null); }} /> : visibleServices.map((service) => <ServiceRow key={service.id} service={service} group={groups.find((group) => group.id === service.groupId)} runtime={runtimes[service.id] ?? emptyRuntime(service.id)} resource={resources[service.id]} expanded={expandedId === service.id} logs={logs[service.id] ?? []} logMeta={logMeta[service.id]} busy={actionIds.includes(service.id)} shutdownBusy={shutdownState?.phase === 'stopping'} onSelect={(trigger) => toggleDetails(service.id, trigger)} onDetailsExitComplete={handleDetailsExitComplete} onClose={closeDetails} onAction={(action) => void handleRuntime(service.id, action)} onEdit={() => setEditor({ service, isNew: false })} onDelete={() => void handleDeleteService(service)} onOpenUrl={() => void api.openUrl(service.id)} setTab={setPanelTab} tab={panelTab} />)}
           </div>
@@ -537,8 +537,8 @@ function NavItem({ icon, label, count, active, onClick, tone }: { icon: React.Re
 
 function GroupNav({ group, services, runtimes, selected, onSelect, onEdit }: { group: Group; services: Service[]; runtimes: Record<string, RuntimeSnapshot>; selected: boolean; onSelect: () => void; onEdit: () => void }) {
   const running = services.filter((service) => runtimeIsRunning((runtimes[service.id] ?? emptyRuntime(service.id)).status)).length;
-  const attention = services.some((service) => ['failed', 'unknown', 'exited'].includes((runtimes[service.id] ?? emptyRuntime(service.id)).status));
-  return <div className={`group-nav ${selected ? 'selected' : ''}`}><Button variant="ghost" size="md" className="group-nav-main" type="button" aria-pressed={selected} onClick={onSelect}><span className={`group-icon ${attention ? 'attention' : ''}`}><Box size={14} /></span><span className="truncate">{group.name}</span><span className="group-count">{running}/{services.length}</span></Button><Button variant="ghost" size="icon" className="group-edit" type="button" onClick={onEdit} aria-label={`编辑${group.name}`}><MoreHorizontal size={15} /></Button></div>;
+  const hasIssue = services.some((service) => ['failed', 'unknown', 'exited'].includes((runtimes[service.id] ?? emptyRuntime(service.id)).status));
+  return <div className={`group-nav ${selected ? 'selected' : ''}`}><Button variant="ghost" size="md" className="group-nav-main" type="button" aria-pressed={selected} onClick={onSelect}><span className={`group-icon ${hasIssue ? 'has-issue' : ''}`}><Box size={14} /></span><span className="truncate">{group.name}</span><span className="group-count">{running}/{services.length}</span></Button><Button variant="ghost" size="icon" className="group-edit" type="button" onClick={onEdit} aria-label={`编辑${group.name}`}><MoreHorizontal size={15} /></Button></div>;
 }
 
 function FilterTab({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) { return <Button variant="ghost" size="sm" className={`filter-tab ${active ? 'active' : ''}`} type="button" aria-pressed={active} onClick={onClick}>{label}</Button>; }

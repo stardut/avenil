@@ -30,7 +30,7 @@
   "bundle": {
     "active": true,
     "targets": [
-      "app"
+      "dmg"
     ],
     "icon": [
       "icons/icon.icns",
@@ -39,7 +39,8 @@
     "shortDescription": "A quiet place for things to run.",
     "category": "DeveloperTool",
     "macOS": {
-      "minimumSystemVersion": "15.0"
+      "minimumSystemVersion": "15.0",
+      "signingIdentity": "-"
     }
   }
 }

@@ -19,7 +19,7 @@ import {
 export const previewMode = new URLSearchParams(window.location.search).get('preview') === '1';
 export const inTauri = Boolean((window as Window & { __TAURI_INTERNALS__?: unknown; __TAURI__?: unknown }).__TAURI_INTERNALS__ || (window as Window & { __TAURI__?: unknown }).__TAURI__);
 
-export type RuntimeEvent = { kind: 'runtime' | 'resource' | 'log' | 'config' | 'shutdown'; payload: unknown };
+export type RuntimeEvent = { kind: 'runtime' | 'resource' | 'log' | 'config' | 'shutdown' | 'quitRequested'; payload: unknown };
 
 export interface AvenilApi {
   readonly preview: boolean;
@@ -43,6 +43,9 @@ export interface AvenilApi {
   resources(serviceIds?: string[]): Promise<ResourceSnapshot[]>;
   logs(serviceId: string, afterSeq?: number, limit?: number): Promise<LogPage>;
   openUrl(serviceId: string): Promise<void>;
+  quitRequestPending(): Promise<boolean>;
+  cancelQuitRequest(): Promise<void>;
+  quit(): Promise<void>;
   on(event: RuntimeEvent['kind'], callback: (payload: any) => void): Promise<UnlistenFn>;
 }
 
@@ -70,6 +73,9 @@ const tauriApi: AvenilApi = {
   resources: (serviceIds) => command<ResourceSnapshot[]>('resource_snapshot', serviceIds ? { serviceIds } : undefined),
   logs: (serviceId, afterSeq, limit) => command<LogPage>('log_page', { serviceId, afterSeq, limit }),
   openUrl: (serviceId) => command<void>('open_service_url', { serviceId }),
+  quitRequestPending: () => command<boolean>('quit_request_pending'),
+  cancelQuitRequest: () => command<void>('quit_request_cancel'),
+  quit: () => command<void>('app_quit'),
   on: async (event, callback) => {
     const names = {
       runtime: 'avenil://runtime-changed',
@@ -77,6 +83,7 @@ const tauriApi: AvenilApi = {
       log: 'avenil://log',
       config: 'avenil://config-changed',
       shutdown: 'avenil://shutdown-state',
+      quitRequested: 'avenil://quit-requested',
     } as const;
     return listen(names[event], (message) => callback(message.payload));
   },
@@ -189,6 +196,9 @@ function mockApi(): AvenilApi {
     resources: async (serviceIds) => [...resources.values()].filter((item) => !serviceIds || serviceIds.includes(item.serviceId)).map(clone),
     logs: async (serviceId) => clone(logs.get(serviceId) ?? { serviceId, generation: null, chunks: [], nextSeq: 1, truncated: false, droppedChunks: 0 }),
     openUrl: async (serviceId) => { const service = config.services.find((item) => item.id === serviceId); if (service?.url) window.open(service.url, '_blank', 'noopener,noreferrer'); },
+    quitRequestPending: async () => false,
+    cancelQuitRequest: async () => {},
+    quit: async () => {},
     on: async (event, callback) => { const set = callbacks.get(event) ?? new Set(); set.add(callback); callbacks.set(event, set); return () => set.delete(callback); },
   };
 }

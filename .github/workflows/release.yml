@@ -3,13 +3,19 @@ name: Release macOS app
 on:
   push:
     tags:
-      - "v*.*.*"
+      - "*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing version tag to build and publish"
+        required: true
+        type: string
 
 permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -24,7 +30,7 @@ jobs:
       - name: Check out tagged source
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.ref }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
@@ -47,17 +53,17 @@ jobs:
 
       - name: Validate release tag and app version
         env:
-          TAG_NAME: ${{ github.ref_name }}
+          TAG_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: |
           node --input-type=module <<'NODE'
           import fs from "node:fs";
 
           const tag = process.env.TAG_NAME;
           const tagVersion = tag?.replace(/^v/, "");
-          const semverPattern = /^v\d+\.\d+\.\d+$/;
+          const semverPattern = /^v?\d+\.\d+\.\d+$/;
 
           if (!tag || !semverPattern.test(tag)) {
-            throw new Error(`Release tags must use vMAJOR.MINOR.PATCH: ${tag ?? "<missing>"}`);
+            throw new Error(`Release tags must use MAJOR.MINOR.PATCH with an optional v prefix: ${tag ?? "<missing>"}`);
           }
 
           const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
@@ -94,8 +100,8 @@ jobs:
         with:
           tauriScript: npm run tauri
           args: --target aarch64-apple-darwin --bundles dmg
-          tagName: ${{ github.ref_name }}
-          releaseName: Avenil ${{ github.ref_name }}
+          tagName: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          releaseName: Avenil ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           releaseBody: |
             ## Installation
 

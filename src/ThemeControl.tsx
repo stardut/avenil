@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './components/ui/select';
 import { inTauri } from './api';
+import { LANGUAGE_OPTIONS, useI18n, type LanguagePreference } from './i18n';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 
@@ -33,6 +34,7 @@ function useSystemDark() {
 }
 
 export function useTheme(notify?: (message: string, tone?: 'error' | 'success' | 'info') => void) {
+  const { t } = useI18n();
   const [mode, setMode] = useState<ThemeMode>(readThemeMode);
   const systemDark = useSystemDark();
   const resolved = mode === 'system' ? (systemDark ? 'dark' : 'light') : mode;
@@ -47,15 +49,15 @@ export function useTheme(notify?: (message: string, tone?: 'error' | 'success' |
   useEffect(() => {
     if (!inTauri) return;
     void getCurrentWindow().setTheme(mode === 'system' ? null : mode).catch((reason: unknown) => {
-      notify?.(`无法同步原生窗口主题：${reason instanceof Error ? reason.message : '请检查桌面权限'}`, 'error');
+      notify?.(t('error.nativeTheme', { reason: reason instanceof Error ? reason.message : t('error.operationFailed') }), 'error');
     });
-  }, [mode, notify]);
+  }, [mode, notify, t]);
 
   const changeMode = (next: ThemeMode) => {
     try {
       window.localStorage.setItem(STORAGE_KEY, next);
     } catch {
-      notify?.('主题已切换，但本机无法保存偏好；下次启动将跟随系统', 'info');
+      notify?.(t('error.themeNotSaved'), 'info');
     }
     setMode(next);
   };
@@ -64,15 +66,31 @@ export function useTheme(notify?: (message: string, tone?: 'error' | 'success' |
 }
 
 export default function ThemeControl({ mode, onChange }: { mode: ThemeMode; onChange: (mode: ThemeMode) => void }) {
+  const { t } = useI18n();
   return (
     <div className="theme-control">
-      <span className="theme-description"><strong>主题</strong><small>选择外观，偏好会自动保存</small></span>
+      <span className="theme-description"><strong>{t('settings.theme')}</strong><small>{t('settings.themeDescription')}</small></span>
       <Select value={mode} onValueChange={(value) => onChange(value as ThemeMode)}>
-        <SelectTrigger aria-label="选择主题"><SelectValue /></SelectTrigger>
+        <SelectTrigger aria-label={t('settings.theme')}><SelectValue /></SelectTrigger>
         <SelectContent>
-          <SelectItem value="system">跟随系统</SelectItem>
-          <SelectItem value="light">浅色</SelectItem>
-          <SelectItem value="dark">深色</SelectItem>
+          <SelectItem value="system">{t('settings.theme.system')}</SelectItem>
+          <SelectItem value="light">{t('settings.theme.light')}</SelectItem>
+          <SelectItem value="dark">{t('settings.theme.dark')}</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+export function LanguageControl() {
+  const { language, changeLanguage, t } = useI18n();
+  return (
+    <div className="theme-control language-control">
+      <span className="theme-description"><strong>{t('settings.language')}</strong><small>{t('settings.languageDescription')}</small></span>
+      <Select value={language} onValueChange={(value) => changeLanguage(value as LanguagePreference)}>
+        <SelectTrigger aria-label={t('settings.language')}><SelectValue /></SelectTrigger>
+        <SelectContent>
+          {LANGUAGE_OPTIONS.map((option) => <SelectItem value={option.value} key={option.value}>{t(option.labelKey)}</SelectItem>)}
         </SelectContent>
       </Select>
     </div>

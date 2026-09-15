@@ -4,6 +4,7 @@ import { ArrowDownToLine, ArrowDownUp, ArrowUpFromLine, ChevronDown, FileCode2 }
 import { Button } from './components/ui/button';
 import { useDismiss } from './lib/hooks/use-dismiss';
 import { EASE_OUT } from './lib/ease';
+import { useI18n } from './i18n';
 
 type Props = {
   onIdeImport: () => void;
@@ -21,6 +22,7 @@ const MENU_TRANSITION = { duration: 0.16, ease: EASE_OUT } as const;
 const FOCUSABLE_SELECTOR = 'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])';
 
 export default function WorkspaceTransferMenu({ onIdeImport, onImportConfig, onExportConfig }: Props) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -88,7 +90,7 @@ export default function WorkspaceTransferMenu({ onIdeImport, onImportConfig, onE
       aria-controls="workspace-transfer-menu"
       onClick={() => setOpen((current) => !current)}
     >
-      <span className="transfer-trigger-content"><ArrowDownUp size={16} /><span>导入 / 导出</span></span>
+      <span className="transfer-trigger-content"><ArrowDownUp size={16} /><span>{t('transfer.trigger')}</span></span>
       <ChevronDown size={14} aria-hidden="true" />
     </Button>
     <AnimatePresence initial={false}>
@@ -96,7 +98,7 @@ export default function WorkspaceTransferMenu({ onIdeImport, onImportConfig, onE
         id="workspace-transfer-menu"
         className="transfer-popover"
         role="menu"
-        aria-label="导入和导出操作"
+        aria-label={t('transfer.menuAria')}
         variants={MENU_VARIANTS}
         initial="initial"
         animate="animate"
@@ -104,11 +106,11 @@ export default function WorkspaceTransferMenu({ onIdeImport, onImportConfig, onE
         transition={reduceMotion ? { duration: 0.01 } : MENU_TRANSITION}
         onKeyDown={handleKeyDown}
       >
-        <span className="transfer-popover-label">配置操作</span>
-        <TransferMenuItem icon={<FileCode2 size={15} />} label="从 IDE 导入" hint="VS Code / JetBrains" onClick={() => choose(onIdeImport)} />
-        <TransferMenuItem icon={<ArrowDownToLine size={15} />} label="导入配置" hint="从 JSON 文件替换当前配置" onClick={() => choose(onImportConfig)} />
+        <span className="transfer-popover-label">{t('transfer.section')}</span>
+        <TransferMenuItem icon={<FileCode2 size={15} />} label={t('transfer.importIde')} hint={t('transfer.importIdeHint')} onClick={() => choose(onIdeImport)} />
+        <TransferMenuItem icon={<ArrowDownToLine size={15} />} label={t('transfer.importConfig')} hint={t('transfer.importConfigHint')} onClick={() => choose(onImportConfig)} />
         <div className="transfer-popover-separator" role="separator" />
-        <TransferMenuItem icon={<ArrowUpFromLine size={15} />} label="导出配置" hint="导出脱敏后的 JSON" onClick={() => choose(onExportConfig)} />
+        <TransferMenuItem icon={<ArrowUpFromLine size={15} />} label={t('transfer.exportConfig')} hint={t('transfer.exportConfigHint')} onClick={() => choose(onExportConfig)} />
       </motion.div>}
     </AnimatePresence>
   </div>;

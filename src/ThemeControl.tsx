@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './components/ui/select';
 import { inTauri } from './api';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
@@ -62,16 +63,18 @@ export function useTheme(notify?: (message: string, tone?: 'error' | 'success' |
   return useMemo(() => ({ mode, resolved, changeMode }), [mode, resolved]);
 }
 
-export default function ThemeControl({ notify }: { notify: (message: string, tone?: 'error' | 'success' | 'info') => void }) {
-  const { mode, changeMode } = useTheme(notify);
+export default function ThemeControl({ mode, onChange }: { mode: ThemeMode; onChange: (mode: ThemeMode) => void }) {
   return (
-    <label className="theme-control">
-      <span className="sr-only">主题</span>
-      <select value={mode} onChange={(event) => changeMode(event.target.value as ThemeMode)} aria-label="选择主题">
-        <option value="system">跟随系统</option>
-        <option value="light">浅色</option>
-        <option value="dark">深色</option>
-      </select>
-    </label>
+    <div className="theme-control">
+      <span className="theme-description"><strong>主题</strong><small>选择外观，偏好会自动保存</small></span>
+      <Select value={mode} onValueChange={(value) => onChange(value as ThemeMode)}>
+        <SelectTrigger aria-label="选择主题"><SelectValue /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="system">跟随系统</SelectItem>
+          <SelectItem value="light">浅色</SelectItem>
+          <SelectItem value="dark">深色</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
   );
 }

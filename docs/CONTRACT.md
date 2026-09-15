@@ -201,7 +201,7 @@ app_quit() -> void
 
 `ide_import_preview` 接收用户选择的项目根目录，只在该目录下自动查找 `.vscode/launch.json`、`.idea/runConfigurations/*.xml` 和 `.run/*.xml`，不递归扫描、不执行命令、不执行 IDE 宏。每个配置文件最大 2 MiB；VS Code 使用 JSONC 解析，JetBrains 使用 XML 解析。未找到配置或配置读取/解析失败时返回可读错误；同时存在多个 IDE 来源时合并到同一份预览。预览快照只在内存中保留最多 8 份，apply 只能使用对应快照，不重新读取源文件。
 
-当前导入范围是 VS Code/Cursor 的 `node-terminal`、明确 `program` 的 `node`/`pwa-node`、明确解释器和 `program`/`module` 的 Python launch，以及 IDEA 的明确 Maven/Gradle goals/tasks。所有导入均按普通前台 shell 运行，不保留调试能力。`attach`、未知扩展类型、Java 缺少确定 classpath/module/JRE、compound、`preLaunchTask`/`postDebugTask`/`dependsOn`、`envFile`、动态变量和 IDEA before-run/JRE/远程目标会标为 `unsupported` 或 `needsInput`，不能静默丢弃。
+当前导入范围是 VS Code/Cursor 的 `node-terminal`、明确 `program` 的 `node`/`pwa-node`、使用 `runtimeExecutable: npm` 与 `runtimeArgs: run <script>` 的 Node npm 脚本、明确 `mainClass` 且工作目录下声明 `spring-boot-maven-plugin` 的 Java Spring Boot launch、明确解释器和 `program`/`module` 的 Python launch，以及 IDEA 的明确 Maven/Gradle goals/tasks。Java Spring Boot launch 转换为 Maven 前台命令；其 `preLaunchTask` 不单独执行，由 Maven 运行负责编译；Java 非空 `args` 不自动猜测参数边界，会要求在 Avenil 中确认。所有导入均按普通前台 shell 运行，不保留调试能力。`attach`、未知扩展类型、Java 缺少可识别 Maven Spring Boot 构建命令、compound、未被转换的 `postDebugTask`/`dependsOn`、`envFile`、动态变量和 IDEA before-run/JRE/远程目标会标为 `unsupported` 或 `needsInput`，不能静默丢弃。
 
 `ide_import_apply` 必须由 UI 在预览后确认调用；空选择、重复或未知 candidate、非 `ready` candidate、缺失输入、空 groupName、活跃 runtime/operation 均拒绝。apply 是当前配置的原子追加：创建一个新 Group 和所选服务，给 Group/Service 生成新 UUID，保留现有 groups/services 完全不变；失败不得写入部分结果。环境变量字面值在服务端快照中保留，预览 DTO 中统一清空并标记 `secret=true`，因此 UI 不会泄露；导入过程不会自动启动服务。
 

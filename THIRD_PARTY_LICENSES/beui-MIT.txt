@@ -2,9 +2,10 @@ beUI public component source
 Repository: https://github.com/starc007/ui-components
 Pinned source commit: 8d3fa7b4b3b4d74f53ea7096d5eb59e4479c0340
 Used source: components/motion/button/base.tsx, components/motion/tooltip.tsx,
-lib/ease.ts, lib/utils.ts and the public gesture hooks used by Tooltip. The
-Button and Tooltip utility class names are adapted to RunDock-local CSS; their
-behavior and motion logic remain based on the public source.
+components/motion/select.tsx, lib/ease.ts, lib/utils.ts and the public gesture hooks used by Tooltip. The
+Button, Tooltip and Select utility classes are adapted to Avenil-local CSS.
+Select adds portal positioning and keyboard navigation; motion remains based
+on the public source.
 
 MIT License
 

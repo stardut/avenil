@@ -127,6 +127,6 @@ function CandidateRow({ candidate, checked, onToggle }: { candidate: Candidate; 
   const meta = statusMeta[candidate.status];
   const service = candidate.service;
   return <article className={`ide-candidate ${meta.className}`}>
-    <label className="ide-candidate-main"><input type="checkbox" checked={checked} disabled={candidate.status !== 'ready'} onChange={onToggle} /><span><strong>{candidate.name}</strong><small>{service ? `${service.workdir} · ${service.command}` : candidate.warnings[0] || '无法转换为普通运行服务'}</small>{service?.env.length ? <em>环境变量：{service.env.map((item) => item.key).join('、')}</em> : null}{candidate.missing.length ? <em className="missing">缺少：{candidate.missing.join('、')}</em> : null}</span></label><span className={`ide-status ${meta.className}`}>{meta.label}</span>
+    <label className="ide-candidate-main"><input type="checkbox" checked={checked} disabled={candidate.status !== 'ready'} onChange={onToggle} /><span><strong>{candidate.name}</strong><small>{service ? `${service.workdir} · ${service.command}` : candidate.warnings[0] || '无法转换为普通运行服务'}</small>{service?.env.length ? <em>环境变量：{service.env.map((item) => item.key).join('、')}</em> : null}{candidate.warnings.slice(1).map((warning) => <em key={warning}>{warning}</em>)}{candidate.missing.length ? <em className="missing">缺少：{candidate.missing.join('、')}</em> : null}</span></label><span className={`ide-status ${meta.className}`}>{meta.label}</span>
   </article>;
 }

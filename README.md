@@ -74,7 +74,7 @@ Already have IDE run configurations? Click **从 IDE 导入** (Import from IDE),
 | Readiness | An optional port checks TCP connectivity to `127.0.0.1`, with a 30-second startup deadline. This is not an HTTP health check. |
 | Environment | Configured values override the app's inherited environment. `.env` files are not loaded automatically. |
 | Configuration | Stored locally as JSON. Environment values are **not encrypted at rest**; exports remove all values. |
-| Closing the window | Hides the window. Explicitly quitting stops managed services; a failed shutdown keeps the app available. |
+| Closing the window | Hides the window and keeps Avenil in the macOS menu bar. Choosing Quit from the tray menu asks for confirmation, then stops managed services; a failed shutdown keeps the app available. |
 
 See the [usage guide](docs/USAGE.md) for configuration storage, logging, import rules, and troubleshooting.
 
@@ -118,14 +118,14 @@ npm run tauri build
 
 The default output is under `src-tauri/target/release/bundle/dmg/`. Local builds use an ad-hoc signature and are not Developer ID signed or notarized.
 
-To publish a release, first make sure the version in `package.json`, `package-lock.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml` is the same, then push a matching tag. The repository currently uses tags without a `v` prefix:
+To publish a release, create and push an annotated tag for the intended version. Business commits do not need to update version files in advance: the tag is the release version, and the workflow synchronizes that version in its temporary CI workspace before building. The repository currently uses tags without a `v` prefix:
 
 ```bash
-git tag 0.1.0
-git push origin 0.1.0
+git tag -a 0.2.0 -m "Avenil 0.2.0 release"
+git push origin 0.2.0
 ```
 
-The `Release macOS app` workflow validates the tag and version, builds the Apple Silicon DMG, and publishes it to that tag's GitHub Release. It can also be run manually from the Actions page with an existing tag to recover or republish a release. Developer ID signing and Apple notarization remain future release work.
+The `Release macOS app` workflow reads the tag, synchronizes `package.json`, `package-lock.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `src-tauri/Cargo.lock` in the temporary checkout, builds the Apple Silicon DMG, publishes it to that tag's GitHub Release, and verifies that the Release contains a `.dmg` asset. It can also be run manually from the Actions page with an existing tag to recover or republish a release. Developer ID signing and Apple notarization remain future release work.
 
 </details>
 

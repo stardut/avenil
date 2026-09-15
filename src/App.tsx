@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import {
   Activity,
@@ -17,7 +18,6 @@ import {
   Layers3,
   LayoutList,
   LoaderCircle,
-  MoreHorizontal,
   Pencil,
   Play,
   Plus,
@@ -40,6 +40,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '.
 import { Button } from './components/ui/button';
 import { Tooltip } from './components/ui/tooltip';
 import { EASE_OUT, SPRING_PANEL } from './lib/ease';
+import { useDismiss } from './lib/hooks/use-dismiss';
 import { useI18n, type MessageKey, type Translator } from './i18n';
 import {
   AppConfig,
@@ -151,6 +152,7 @@ function App() {
   const serviceSubmitRef = useRef(false);
   const groupSubmitRef = useRef(false);
   const importApplyRef = useRef(false);
+  const quitRequestRef = useRef(false);
   const notify = useCallback((message: string, tone: 'error' | 'success' | 'info' = 'info') => {
     if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
     setToast({ message, tone });
@@ -215,6 +217,21 @@ function App() {
   useEffect(() => {
     if (!previewMode && !inTauri) return;
     let disposed = false;
+    const handleQuitRequested = () => {
+      if (disposed || quitRequestRef.current) return;
+      quitRequestRef.current = true;
+      if (!window.confirm(t('confirm.quit'))) {
+        void api.cancelQuitRequest()
+          .catch((reason) => { if (!disposed) notify(errorText(reason, t), 'error'); })
+          .finally(() => { quitRequestRef.current = false; });
+        return;
+      }
+      void api.quit().catch((reason) => {
+        quitRequestRef.current = false;
+        notify(errorText(reason, t), 'error');
+      });
+    };
+    const quitSubscription = api.on('quitRequested', handleQuitRequested);
     const subscriptions: Promise<() => void>[] = [
       api.on('runtime', (snapshot: RuntimeSnapshot) => {
         if (disposed) return;
@@ -243,7 +260,12 @@ function App() {
           setShutdownState(null);
         }
       }),
+      quitSubscription,
     ];
+    void quitSubscription
+      .then(() => disposed ? false : api.quitRequestPending())
+      .then((pending) => { if (pending) handleQuitRequested(); })
+      .catch((reason) => { if (!disposed) notify(errorText(reason, t), 'error'); });
     return () => { disposed = true; subscriptions.forEach((subscription) => subscription.then((unlisten) => unlisten())); };
   }, [notify, t]);
 
@@ -483,7 +505,7 @@ function App() {
           </nav>
           <div className="sidebar-heading groups-heading"><span>{t('sidebar.groups')}</span><Button variant="ghost" size="icon" className="mini-button" aria-label={t('sidebar.createGroup')} onClick={() => setGroupEditor({ id: '', name: '', sortOrder: groups.length })}><Plus size={15} /></Button></div>
           <nav className="group-list" aria-label={t('sidebar.groups')}>
-            {groups.map((group) => <GroupNav key={group.id} group={group} services={servicesByGroup.get(group.id) ?? []} runtimes={runtimes} selected={selectedGroupId === group.id} onSelect={() => { setSelectedGroupId(group.id); setFilter('all'); }} onEdit={() => setGroupEditor(group)} />)}
+            {groups.map((group) => <GroupNav key={group.id} group={group} services={servicesByGroup.get(group.id) ?? []} runtimes={runtimes} selected={selectedGroupId === group.id} onSelect={() => { setSelectedGroupId(group.id); setFilter('all'); }} onEdit={() => setGroupEditor(group)} onDelete={() => void handleDeleteGroup(group)} />)}
             {!groups.length && <div className="sidebar-empty">{t('sidebar.emptyGroups')}</div>}
           </nav>
           <div className="sidebar-footer">
@@ -538,11 +560,138 @@ function NavItem({ icon, label, count, active, onClick, tone }: { icon: React.Re
   return <Button variant="ghost" size="md" className={`nav-item ${active ? 'active' : ''}`} type="button" aria-pressed={active} onClick={onClick}>{icon}<span>{label}</span><em className={tone}>{count}</em></Button>;
 }
 
-function GroupNav({ group, services, runtimes, selected, onSelect, onEdit }: { group: Group; services: Service[]; runtimes: Record<string, RuntimeSnapshot>; selected: boolean; onSelect: () => void; onEdit: () => void }) {
+type GroupMenuAnchor = { x: number; y: number };
+type GroupMenuPosition = { left: number; top: number };
+
+const GROUP_MENU_MARGIN = 8;
+const GROUP_MENU_VARIANTS = {
+  initial: { opacity: 0, y: 5, scale: 0.98 },
+  animate: { opacity: 1, y: 0, scale: 1 },
+  exit: { opacity: 0, y: 3, scale: 0.98 },
+};
+const GROUP_MENU_TRANSITION = { duration: 0.14, ease: EASE_OUT } as const;
+
+function GroupNav({ group, services, runtimes, selected, onSelect, onEdit, onDelete }: { group: Group; services: Service[]; runtimes: Record<string, RuntimeSnapshot>; selected: boolean; onSelect: () => void; onEdit: () => void; onDelete: () => void }) {
   const { t } = useI18n();
   const running = services.filter((service) => runtimeIsRunning((runtimes[service.id] ?? emptyRuntime(service.id)).status)).length;
   const hasIssue = services.some((service) => ['failed', 'unknown', 'exited'].includes((runtimes[service.id] ?? emptyRuntime(service.id)).status));
-  return <div className={`group-nav ${selected ? 'selected' : ''}`}><Button variant="ghost" size="md" className="group-nav-main" type="button" aria-pressed={selected} onClick={onSelect}><span className={`group-icon ${hasIssue ? 'has-issue' : ''}`}><Box size={14} /></span><span className="truncate">{group.name}</span><span className="group-count">{running}/{services.length}</span></Button><Button variant="ghost" size="icon" className="group-edit" type="button" onClick={onEdit} aria-label={t('sidebar.editGroup', { name: group.name })}><MoreHorizontal size={15} /></Button></div>;
+  const [menuAnchor, setMenuAnchor] = useState<GroupMenuAnchor | null>(null);
+  const [menuPosition, setMenuPosition] = useState<GroupMenuPosition>({ left: 0, top: 0 });
+  const groupRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const reduceMotion = useReducedMotion();
+  const menuId = `group-context-menu-${group.id}`;
+  const menuOpen = menuAnchor !== null;
+
+  const closeMenu = useCallback(() => setMenuAnchor(null), []);
+  const focusGroup = useCallback(() => {
+    window.requestAnimationFrame(() => groupRef.current?.querySelector<HTMLButtonElement>('.group-nav-main')?.focus());
+  }, []);
+  const closeMenuAndFocusGroup = useCallback(() => {
+    setMenuAnchor(null);
+    focusGroup();
+  }, [focusGroup]);
+
+  useDismiss(menuOpen, closeMenu, menuRef, { behavior: 'pass-through', escape: false });
+
+  useLayoutEffect(() => {
+    if (!menuAnchor || !menuRef.current) return;
+    const { width, height } = menuRef.current.getBoundingClientRect();
+    const maxLeft = Math.max(GROUP_MENU_MARGIN, window.innerWidth - width - GROUP_MENU_MARGIN);
+    const maxTop = Math.max(GROUP_MENU_MARGIN, window.innerHeight - height - GROUP_MENU_MARGIN);
+    setMenuPosition({
+      left: Math.min(Math.max(GROUP_MENU_MARGIN, menuAnchor.x), maxLeft),
+      top: Math.min(Math.max(GROUP_MENU_MARGIN, menuAnchor.y), maxTop),
+    });
+  }, [menuAnchor]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const frame = window.requestAnimationFrame(() => menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [menuOpen]);
+
+  const openMenu = useCallback((x: number, y: number) => {
+    const rect = groupRef.current?.getBoundingClientRect();
+    const fallbackX = rect ? rect.left + Math.min(rect.width / 2, 72) : GROUP_MENU_MARGIN;
+    const fallbackY = rect?.bottom ?? GROUP_MENU_MARGIN;
+    const nextX = x > 0 ? x : fallbackX;
+    const nextY = y > 0 ? y : fallbackY;
+    setMenuPosition({ left: nextX, top: nextY });
+    setMenuAnchor({ x: nextX, y: nextY });
+  }, []);
+
+  const handleContextMenu = (event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openMenu(event.clientX, event.clientY);
+  };
+
+  const handleTriggerKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return;
+    event.preventDefault();
+    const rect = event.currentTarget.getBoundingClientRect();
+    openMenu(rect.right - 8, rect.bottom - 4);
+  };
+
+  const choose = (action: () => void) => {
+    setMenuAnchor(null);
+    action();
+  };
+
+  const handleMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const items = Array.from(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      closeMenuAndFocusGroup();
+      return;
+    }
+    if (event.key === 'Tab') {
+      event.preventDefault();
+      closeMenuAndFocusGroup();
+      return;
+    }
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key) || !items.length) return;
+    event.preventDefault();
+    const currentIndex = items.indexOf(document.activeElement as HTMLElement);
+    const nextIndex = event.key === 'Home'
+      ? 0
+      : event.key === 'End'
+        ? items.length - 1
+        : (currentIndex + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+    items[nextIndex]?.focus();
+  };
+
+  return <>
+    <div ref={groupRef} className={`group-nav ${selected ? 'selected' : ''}`} onContextMenu={handleContextMenu}>
+      <Button variant="ghost" size="md" className="group-nav-main" type="button" aria-pressed={selected} aria-haspopup="menu" aria-expanded={menuOpen} aria-controls={menuId} onClick={onSelect} onKeyDown={handleTriggerKeyDown}>
+        <span className={`group-icon ${hasIssue ? 'has-issue' : ''}`}><Box size={14} /></span><span className="truncate">{group.name}</span><span className="group-count">{running}/{services.length}</span>
+      </Button>
+    </div>
+    {typeof document !== 'undefined' && createPortal(
+      <AnimatePresence>
+        {menuOpen && <motion.div
+          ref={menuRef}
+          id={menuId}
+          className="group-context-popover"
+          role="menu"
+          aria-label={t('sidebar.groupMenuAria', { name: group.name })}
+          style={menuPosition}
+          initial="initial"
+          animate="animate"
+          exit="exit"
+          variants={GROUP_MENU_VARIANTS}
+          transition={reduceMotion ? { duration: 0.01 } : GROUP_MENU_TRANSITION}
+          onKeyDown={handleMenuKeyDown}
+        >
+          <Button variant="ghost" size="sm" className="group-context-menu-item" role="menuitem" onClick={() => choose(onEdit)}><Pencil size={15} />{t('sidebar.editGroupAction')}</Button>
+          <Button variant="ghost" size="sm" className="group-context-menu-item danger" role="menuitem" onClick={() => choose(onDelete)}><Trash2 size={15} />{t('sidebar.deleteGroupAction')}</Button>
+        </motion.div>}
+      </AnimatePresence>,
+      document.body,
+    )}
+  </>;
 }
 
 function FilterTab({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) { return <Button variant="ghost" size="sm" className={`filter-tab ${active ? 'active' : ''}`} type="button" aria-pressed={active} onClick={onClick}>{label}</Button>; }

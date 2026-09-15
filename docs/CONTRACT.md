@@ -192,6 +192,8 @@ runtime_snapshot(serviceIds?: Id[]) -> RuntimeSnapshot[]
 resource_snapshot(serviceIds?: Id[]) -> ResourceSnapshot[]
 log_page(serviceId: Id, afterSeq?: number, limit?: number) -> LogPage
 open_service_url(serviceId: Id) -> void
+quit_request_pending() -> boolean
+quit_request_cancel() -> void
 app_quit() -> void
 ```
 
@@ -231,10 +233,11 @@ avenil://resource-changed  ResourceSnapshot
 avenil://log               LogChunk
 avenil://config-changed    { config: AppConfig }
 avenil://shutdown-state    { phase: "stopping" | "completed" | "forced", error?: string }
+avenil://quit-requested   null
 ```
 
-运行状态、日志、资源都必须带 `serviceId` 和 generation。配置成功持久化后才发送 `config-changed`。事件不是状态真相；UI 重连或丢事件后应重新调用 snapshot/log_page。
+运行状态、日志、资源都必须带 `serviceId` 和 generation。配置成功持久化后才发送 `config-changed`。事件不是状态真相；UI 重连或丢事件后应重新调用 snapshot/log_page。`quit-requested` 也是一次性通知，UI 完成监听后必须调用 `quit_request_pending` 补偿启动或订阅期间丢失的请求；用户取消时调用 `quit_request_cancel` 清除待处理请求。
 
 ## 托盘与退出
 
-关闭窗口只隐藏窗口，不退出进程。托盘至少提供显示窗口和退出。`app_quit`、托盘退出和系统退出请求先阻止默认退出，广播 `shutdown-state: stopping`，串行停止所有当前托管服务；只有所有当前 generation 的进程组确认清理后才发送 `completed` 并退出。超时强杀或停止失败后发送 `{ phase: "forced", error }`，取消本次退出、解除 shutdown 门禁并保留运行态，用户可在 UI 中看到错误并重试。应用正常退出不留下由 Avenil 启动的服务进程。
+关闭窗口只隐藏窗口，不退出进程。托盘至少提供显示窗口和退出。托盘右键菜单的“退出”和系统退出请求先阻止默认退出，显示主窗口并发送 `quit-requested`，UI 必须先向用户确认会自动停止所有仍在运行的托管服务，确认后才能调用 `app_quit`。`app_quit` 随后广播 `shutdown-state: stopping`，串行停止所有当前托管服务；只有所有当前 generation 的进程组确认清理后才发送 `completed` 并退出。超时强杀或停止失败后发送 `{ phase: "forced", error }`，取消本次退出、解除 shutdown 门禁并保留运行态，用户可在 UI 中看到错误并重试。应用正常退出不留下由 Avenil 启动的服务进程。

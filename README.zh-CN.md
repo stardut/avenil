@@ -64,7 +64,7 @@ Avenil 是为这些服务准备的桌面工作区。保存每个服务的工作�
 - 可选端口检查连接 `127.0.0.1`，启动期限为 30 秒；这不是 HTTP 健康检查。
 - 环境变量覆盖应用继承的环境，不会自动读取 `.env`。
 - 本地 JSON 中的环境变量值**没有加密**；导出时全部清空。
-- 关闭窗口会隐藏应用；明确退出会停止托管服务，停止失败时保持应用可用。
+- 关闭窗口会直接隐藏应用，Avenil 继续驻留在 macOS 顶部菜单栏；从托盘右键菜单选择“退出”后会先确认，再自动停止托管服务，停止失败时保持应用可用。
 
 配置路径、日志策略、IDE 支持范围与常见问题见 [使用指南](docs/USAGE.md)。
 
@@ -106,14 +106,14 @@ npm run tauri build
 
 默认产物位于 `src-tauri/target/release/bundle/dmg/`。本地构建使用 ad-hoc 签名，未使用 Developer ID 签名或 Apple 公证。
 
-发布版本前，先确保 `package.json`、`package-lock.json`、`src-tauri/tauri.conf.json` 和 `src-tauri/Cargo.toml` 中的版本号一致，再推送匹配的 tag。仓库当前使用不带 `v` 前缀的 tag：
+发布版本时，只需要为目标生产提交创建并推送 annotated tag。业务提交不需要提前修改版本文件：tag 是发布版本的唯一来源，工作流会在 CI 临时工作区中同步版本后再构建。仓库当前使用不带 `v` 前缀的 tag：
 
 ```bash
-git tag 0.1.0
-git push origin 0.1.0
+git tag -a 0.2.0 -m "Avenil 0.2.0 release"
+git push origin 0.2.0
 ```
 
-`Release macOS app` 工作流会校验 tag 与版本号，构建 Apple Silicon DMG，并将其发布到该 tag 对应的 GitHub Release。也可以在 Actions 页面手动输入已有 tag，重新构建或补发 Release。Developer ID 签名与 Apple 公证仍是后续目标。
+`Release macOS app` 工作流会读取 tag，在临时 checkout 中同步 `package.json`、`package-lock.json`、`src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml` 和 `src-tauri/Cargo.lock` 的版本，构建 Apple Silicon DMG，发布到该 tag 对应的 GitHub Release，并确认 Release 中存在 `.dmg` 资产。也可以在 Actions 页面手动输入已有 tag，重新构建或补发 Release。Developer ID 签名与 Apple 公证仍是后续目标。
 
 </details>
 

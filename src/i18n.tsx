@@ -53,8 +53,14 @@ const messageTable = {
   'sidebar.settings': {
     'zh-CN': '设置', en: 'Settings', ja: '設定', ko: '설정', es: 'Ajustes', fr: 'Réglages',
   },
-  'sidebar.editGroup': {
-    'zh-CN': '编辑{ name }', en: 'Edit {name}', ja: '{name}を編集', ko: '{name} 편집', es: 'Editar {name}', fr: 'Modifier {name}',
+  'sidebar.groupMenuAria': {
+    'zh-CN': '项目组“{name}”操作', en: 'Actions for {name}', ja: '{name}の操作', ko: '{name} 작업', es: 'Acciones para {name}', fr: 'Actions pour {name}',
+  },
+  'sidebar.editGroupAction': {
+    'zh-CN': '编辑项目组', en: 'Edit project', ja: 'プロジェクトを編集', ko: '프로젝트 편집', es: 'Editar proyecto', fr: 'Modifier le projet',
+  },
+  'sidebar.deleteGroupAction': {
+    'zh-CN': '删除项目组', en: 'Delete project', ja: 'プロジェクトを削除', ko: '프로젝트 삭제', es: 'Eliminar proyecto', fr: 'Supprimer le projet',
   },
   'main.allServices': {
     'zh-CN': '全部服务', en: 'All services', ja: 'すべてのサービス', ko: '모든 서비스', es: 'Todos los servicios', fr: 'Tous les services',
@@ -634,6 +640,9 @@ const messageTable = {
   },
   'toast.stopBeforeDelete': {
     'zh-CN': '请先停止服务，再删除配置', en: 'Stop the service before deleting its configuration', ja: '設定を削除する前にサービスを停止してください', ko: '구성을 삭제하기 전에 서비스를 중지하세요', es: 'Detén el servicio antes de eliminar su configuración', fr: 'Arrêtez le service avant de supprimer sa configuration',
+  },
+  'confirm.quit': {
+    'zh-CN': '退出 Avenil？\n退出会自动停止所有仍在运行的托管服务。', en: 'Quit Avenil?\nAll managed services that are still running will be stopped automatically.', ja: 'Avenilを終了しますか？\n実行中の管理対象サービスはすべて自動的に停止します。', ko: 'Avenil을 종료할까요?\n실행 중인 관리 서비스가 모두 자동으로 중지됩니다.', es: '¿Salir de Avenil?\nTodos los servicios gestionados que sigan ejecutándose se detendrán automáticamente.', fr: 'Quitter Avenil ?\nTous les services gérés encore en cours seront arrêtés automatiquement.',
   },
   'confirm.deleteService': {
     'zh-CN': '删除“{name}”的 Avenil 配置？不会删除项目文件。', en: 'Delete the Avenil configuration for “{name}”? Project files will not be deleted.', ja: '「{name}」のAvenil設定を削除しますか？プロジェクトファイルは削除されません。', ko: '“{name}”의 Avenil 구성을 삭제할까요? 프로젝트 파일은 삭제되지 않습니다.', es: '¿Eliminar la configuración de Avenil de “{name}”? Los archivos del proyecto no se eliminarán.', fr: 'Supprimer la configuration Avenil de « {name} » ? Les fichiers du projet ne seront pas supprimés.',

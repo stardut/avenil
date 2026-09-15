@@ -1,5 +1,9 @@
 # Agent Instructions
 
+## Git Metadata Language
+
+All human-readable Git, GitHub, and GitLab metadata must be written in English. This includes commit messages, branch names, annotated tag names and messages, Release names and notes, PR/MR titles and descriptions, comments, checklists, issue relationship text, labels, and status labels. This rule applies to every local Git operation and remote review or release action; application copy and other user-facing product text follow the language requirements of the task.
+
 ## Pull Request Delivery
 
 Use the `my-git-mr` workflow whenever the user asks to open, submit, deliver, publish, release, or update a GitHub pull request or GitLab merge request.
@@ -25,9 +29,9 @@ Use the `my-git-mr` workflow whenever the user asks to open, submit, deliver, pu
 - Inspect the diff for unhandled critical paths, accidental debug code, `TODO`/`FIXME` markers, unjustified magic values, and unnecessarily deep nesting.
 - Stop and report critical correctness or safety problems before pushing. Record minor issues in the final report.
 
-### English PR metadata
+### PR/MR metadata format
 
-All human-readable PR/MR metadata must be written in English, including the title, description, checklist items, issue relationship text, and status labels.
+Use the following PR/MR-specific title, description, checklist, and issue-link conventions in addition to the repository-wide Git metadata language rule.
 
 - With a task from the PMS, use `[{Task ID}] {title}`; add `[Production]` for a production review.
 - With a local task, use `{type}: {title}`; add `[Production]` for a production review.

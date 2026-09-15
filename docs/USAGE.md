@@ -10,7 +10,7 @@ The default execution is `/bin/zsh -lc <command>`. Avenil uses the shell program
 
 Keep the command in the foreground. Do not use `nohup`, append `&`, or ask the command to detach into a daemon. Avenil manages only the process groups it creates and does not adopt existing PIDs or `launchctl` services.
 
-Stopping sends `SIGTERM` to the process group, followed by `SIGKILL` if the grace period expires. Closing the window hides it. Explicitly quitting attempts to stop all managed services; shutdown failures leave the app available with an error.
+Stopping sends `SIGTERM` to the process group, followed by `SIGKILL` if the grace period expires. Closing the window hides it and leaves Avenil running in the macOS menu bar. Choosing Quit from the tray menu requires confirmation, then attempts to stop all managed services; shutdown failures leave the app available with an error.
 
 Group actions are a convenience for operating on multiple services. They do not define dependencies or wait for upstream services before starting downstream services.
 

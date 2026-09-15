@@ -1,0 +1,24 @@
+[package]
+name = "avenil"
+version = "0.1.0"
+description = "A quiet place for things to run. A local service workspace for macOS."
+authors = ["Avenil"]
+edition = "2021"
+license = "MIT"
+
+[lib]
+name = "avenil_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+chrono = { version = "0.4", features = ["serde", "clock"] }
+libc = "0.2"
+json5 = "0.4"
+quick-xml = "0.37"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2", features = ["tray-icon"] }
+uuid = { version = "1", features = ["v4", "serde"] }

@@ -1,0 +1,17 @@
+# Dependencies and build output
+node_modules/
+dist/
+target/
+src-tauri/gen/schemas/
+*.tsbuildinfo
+
+# Local experiments, verification output, and app data
+work/
+outputs/
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+rundock.json
+avenil-config.json

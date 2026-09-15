@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#ffffff" />
+    <link rel="icon" type="image/svg+xml" href="/brand/favicon.svg" />
+    <meta name="description" content="Avenil — A quiet place for things to run. Manage local services, logs, and runtime state on macOS." />
+    <title>Avenil · 本地服务控制台</title>
+    <script>
+      (() => {
+        try {
+          const mode = localStorage.getItem('rundock.theme-mode') || 'system';
+          const resolved = mode === 'system' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : mode;
+          document.documentElement.dataset.theme = ['light', 'dark'].includes(resolved) ? resolved : 'dark';
+          document.documentElement.style.colorScheme = resolved;
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', resolved === 'dark' ? '#151515' : '#ffffff');
+        } catch {
+          document.documentElement.dataset.theme = 'light';
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

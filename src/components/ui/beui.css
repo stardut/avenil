@@ -1,0 +1,57 @@
+/*
+ * Local host styling for the public beUI Button and Tooltip sources.
+ * Source: https://github.com/starc007/ui-components
+ * Pinned commit: 8d3fa7b4b3b4d74f53ea7096d5eb59e4479c0340
+ *
+ * This file intentionally has no Tailwind preflight. Avenil owns the global
+ * reset and theme tokens; the UX shell may import this file from its global
+ * stylesheet entry when the components are used.
+ */
+.beui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  font: inherit;
+  font-weight: 500;
+  line-height: 1;
+  user-select: none;
+  cursor: pointer;
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+.beui-button:disabled {
+  pointer-events: none;
+  opacity: .5;
+}
+.beui-button-primary { color: var(--accent-fill-fg); background: var(--accent-fill); border-color: var(--accent-fill); }
+.beui-button-primary:hover:not(:disabled) { background: var(--accent-fill-hover); border-color: var(--accent-fill-hover); }
+.beui-button-primary:active:not(:disabled) { background: var(--accent-fill-active); border-color: var(--accent-fill-active); }
+.beui-button-secondary { color: var(--text); background: var(--surface-raised); border: 1px solid var(--border); }
+.beui-button-secondary:hover, .beui-button-outline:hover { border-color: var(--border-strong); }
+.beui-button-ghost { color: var(--text-muted); background: transparent; }
+.beui-button-ghost:hover, .beui-button-outline:hover { color: var(--text); background: var(--accent-wash); }
+.beui-button-outline { color: var(--text); background: transparent; border: 1px solid var(--border); }
+.beui-button-sm { height: 32px; padding: 0 12px; gap: 6px; border-radius: 999px; font-size: 12px; }
+.beui-button-md { height: 40px; padding: 0 20px; gap: 8px; border-radius: 999px; font-size: 14px; }
+.beui-button-lg { height: 48px; padding: 0 24px; gap: 8px; border-radius: 999px; font-size: 16px; }
+.beui-button-icon { width: 32px; height: 32px; border-radius: 8px; }
+.beui-button-ripple { position: relative; overflow: hidden; }
+.beui-button-ripple-layer { pointer-events: none; position: absolute; inset: 0; overflow: hidden; border-radius: inherit; }
+.beui-button-ripple-ink { position: absolute; border-radius: 999px; background: currentColor; }
+.beui-tooltip-anchor { position: relative; display: inline-flex; vertical-align: middle; }
+.beui-tooltip-layer { pointer-events: none; position: fixed; z-index: 9999; }
+.beui-tooltip {
+  display: block;
+  white-space: nowrap;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: var(--shadow-popover);
+}
+@media (prefers-reduced-motion: reduce) {
+  .beui-button { transition: none; }
+}

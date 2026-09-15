@@ -59,11 +59,12 @@ Supported starting points include:
 | Configuration | Required information |
 | --- | --- |
 | VS Code / Cursor `node-terminal` | An explicit runnable command and working directory. |
-| VS Code / Cursor `node` / `pwa-node` | An explicit entry point and determinable runtime settings. |
+| VS Code / Cursor `node` / `pwa-node` | An explicit entry point and determinable runtime settings, or an `npm run` script in `runtimeExecutable`/`runtimeArgs`. |
+| VS Code Java Spring Boot | `mainClass` and a Maven project declaring `spring-boot-maven-plugin`; imported as `mvn spring-boot:run`. |
 | Python launch | An explicit interpreter and entry point. |
 | JetBrains Maven / Gradle | Explicit goals or tasks and a working directory. |
 
-Attach configurations, compound launches, task dependencies, `envFile`, dynamic variables, and unknown extensions are not silently converted. Java entry classes alone cannot determine a classpath, module path, or JRE. These entries remain unsupported or require input.
+Attach configurations, compound launches, unsupported task dependencies, `envFile`, dynamic variables, and unknown extensions are not silently converted. Java entries without a detectable Spring Boot Maven project still cannot determine a classpath, module path, JRE, or build command and require input. A recognized Java `preLaunchTask` is not executed separately because the generated Maven run performs the project compilation itself. Non-empty Java `args` are left for confirmation instead of guessing argument boundaries.
 
 Environment values are redacted in the preview and preserved in the imported service configuration, where the UI masks them.
 

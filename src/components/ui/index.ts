@@ -7,3 +7,5 @@ export type {
 } from "./button";
 export { Tooltip } from "./tooltip";
 export type { TooltipProps } from "./tooltip";
+
+export { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "./select";

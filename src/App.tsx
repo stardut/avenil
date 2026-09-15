@@ -9,7 +9,6 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
-  CircleHelp,
   FileJson,
   FileCode2,
   FolderOpen,
@@ -26,6 +25,7 @@ import {
   RefreshCw,
   Search,
   Server,
+  Settings,
   Square,
   TerminalSquare,
   Trash2,
@@ -33,9 +33,10 @@ import {
 } from 'lucide-react';
 import { getApi, inTauri, previewMode } from './api';
 import IdeImportDialog from './IdeImportDialog';
-import ThemeControl from './ThemeControl';
+import ThemeControl, { useTheme } from './ThemeControl';
 import BrandMark from './components/BrandMark';
 import { useDialogFocus } from './useDialogFocus';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './components/ui/select';
 import { Button } from './components/ui/button';
 import { Tooltip } from './components/ui/tooltip';
 import { EASE_OUT, SPRING_PANEL } from './lib/ease';
@@ -124,8 +125,8 @@ function App() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
-  const [query, setQuery] = useState('');
-  const [panelTab, setPanelTab] = useState<PanelTab>('config');
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [panelTab, setPanelTab] = useState<PanelTab>('logs');
   const [editor, setEditor] = useState<{ service: Service; isNew: boolean } | null>(null);
   const [groupEditor, setGroupEditor] = useState<Group | null>(null);
   const [importDialog, setImportDialog] = useState<{ json: string; preview: ImportPreview } | null>(null);
@@ -157,6 +158,8 @@ function App() {
     }, 3600);
   }, []);
 
+  const theme = useTheme(notify);
+
   const toggleDetails = useCallback((serviceId: string, trigger?: HTMLElement) => {
     detailsFocusReturnRef.current = trigger ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
     if (expandedId === serviceId) {
@@ -164,7 +167,7 @@ function App() {
       return;
     }
     setExpandedId(serviceId);
-    setPanelTab('config');
+    setPanelTab('logs');
   }, [expandedId]);
 
   const closeDetails = useCallback(() => {
@@ -244,6 +247,10 @@ function App() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (settingsOpen) {
+        if (event.key === 'Escape') setSettingsOpen(false);
+        return;
+      }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'n') {
         event.preventDefault();
         setEditor({ service: createService(selectedGroupId), isNew: true });
@@ -259,7 +266,7 @@ function App() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [closeDetails, editor, expandedId, groupEditor, ideImportBusy, ideImportOpen, importApplyBusy, importDialog, groupSubmitBusy, selectedGroupId, serviceSubmitBusy]);
+  }, [settingsOpen, closeDetails, editor, expandedId, groupEditor, ideImportBusy, ideImportOpen, importApplyBusy, importDialog, groupSubmitBusy, selectedGroupId, serviceSubmitBusy]);
 
   const groups = useMemo(() => [...config.groups].sort((a, b) => a.sortOrder - b.sortOrder), [config.groups]);
 
@@ -272,11 +279,9 @@ function App() {
   const visibleServices = useMemo(() => config.services.filter((service) => {
     const snapshot = runtimes[service.id] ?? emptyRuntime(service.id);
     const matchesGroup = selectedGroupId === null || service.groupId === selectedGroupId;
-    const text = `${service.name} ${service.command} ${service.workdir} ${service.url ?? ''}`.toLowerCase();
-    const matchesQuery = !query.trim() || text.includes(query.toLowerCase().trim());
     const matchesFilter = filter === 'all' || (filter === 'running' && snapshot.status === 'running') || (filter === 'stopped' && ['stopped', 'exited'].includes(snapshot.status)) || (filter === 'attention' && ['failed', 'unknown', 'exited'].includes(snapshot.status));
-    return matchesGroup && matchesQuery && matchesFilter;
-  }), [config.services, filter, query, runtimes, selectedGroupId]);
+    return matchesGroup && matchesFilter;
+  }), [config.services, filter, runtimes, selectedGroupId]);
 
   useEffect(() => {
     if (!expandedId || visibleServices.some((service) => service.id === expandedId)) return;
@@ -462,17 +467,14 @@ function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div className="brand"><BrandMark /><div><strong>Avenil</strong><span>本地服务控制台</span></div></div>
+        <div className="brand"><BrandMark /><div><strong>Avenil</strong><span>A quiet place for things to run.</span></div></div>
         <div className="topbar-actions">
           {previewMode && <span className="demo-pill"><span className="demo-dot" />演示数据</span>}
-          <label className="search-box"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索服务、命令或路径" aria-label="搜索服务" /></label>
-          <ThemeControl notify={notify} />
-          <Tooltip content="配置保存在本机应用数据目录" side="bottom"><Button variant="ghost" size="icon" className="icon-button" onClick={() => notify('Avenil 将配置保存在本机应用数据目录', 'info')} aria-label="帮助"><CircleHelp size={17} /></Button></Tooltip>
         </div>
       </header>
       <div className="workspace">
         <aside className="sidebar">
-          <div className="sidebar-heading"><span>工作区</span><Button variant="ghost" size="icon" className="mini-button" aria-label="新建项目组" onClick={() => setGroupEditor({ id: '', name: '', sortOrder: groups.length })}><Plus size={15} /></Button></div>
+          <div className="sidebar-heading"><span>工作区</span></div>
           <nav className="nav-list" aria-label="服务筛选">
             <NavItem icon={<LayoutList size={16} />} label="全部服务" count={config.services.length} active={selectedGroupId === null && filter === 'all'} onClick={() => { setSelectedGroupId(null); setFilter('all'); }} />
             <NavItem icon={<Activity size={16} />} label="运行中" count={counts.running} active={filter === 'running' && selectedGroupId === null} onClick={() => { setSelectedGroupId(null); setFilter('running'); }} />
@@ -484,27 +486,39 @@ function App() {
             {groups.map((group) => <GroupNav key={group.id} group={group} services={servicesByGroup.get(group.id) ?? []} runtimes={runtimes} selected={selectedGroupId === group.id} onSelect={() => { setSelectedGroupId(group.id); setFilter('all'); }} onEdit={() => setGroupEditor(group)} />)}
             {!groups.length && <div className="sidebar-empty">创建项目组，整理跨仓库服务</div>}
           </nav>
-          <div className="sidebar-footer"><div className="connection-state"><span className={`connection-dot ${previewMode ? 'demo' : 'live'}`} />{previewMode ? '演示模式' : '本机已连接'}</div><span className="version">MVP · v0.1</span></div>
+          <div className="sidebar-footer">
+            <nav className="workspace-actions" aria-label="工作区操作">
+              <Button variant="primary" size="sm" className="sidebar-add-service" onClick={() => setEditor({ service: createService(selectedGroupId), isNew: true })}><Plus size={16} />添加服务</Button>
+              <Button variant="ghost" size="sm" className="sidebar-action" onClick={() => { setIdeImportPreview(null); setIdeImportBusy(false); setIdeImportOpen(true); }}><FileCode2 size={16} />从 IDE 导入</Button>
+              <Button variant="ghost" size="sm" className="sidebar-action" onClick={() => { setImportDialog(null); fileInputRef.current?.click(); }}><ArrowDownToLine size={16} />导入配置</Button>
+              <Button variant="ghost" size="sm" className="sidebar-action" onClick={() => void handleExport()}><ArrowUpFromLine size={16} />导出配置</Button>
+            </nav>
+            <input ref={fileInputRef} type="file" accept="application/json,.json" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleFile(file); event.currentTarget.value = ''; }} />
+            <div className="sidebar-settings"><Button variant="ghost" size="sm" className="sidebar-action settings-button" type="button" aria-haspopup="dialog" onClick={() => setSettingsOpen(true)}><Settings size={16} /><span>设置</span></Button></div>
+          </div>
         </aside>
 
         <main className="main-content">
           <div className="content-head">
-            <div><div className="eyebrow">{selectedGroup ? '项目组' : '服务总览'}</div><h1>{selectedGroup?.name ?? '全部服务'}</h1><p>{selectedGroup ? `${groupServices.length} 个服务 · 可跨仓库组织` : `${config.services.length} 个服务 · ${counts.running} 个正在运行`}</p></div>
-          <div className="head-actions"><Button variant="outline" size="sm" onClick={() => { setIdeImportPreview(null); setIdeImportBusy(false); setIdeImportOpen(true); }}><FileCode2 size={15} />从 IDE 导入</Button><Button variant="outline" size="sm" onClick={() => { setImportDialog(null); fileInputRef.current?.click(); }}><ArrowDownToLine size={15} />导入</Button><input ref={fileInputRef} type="file" accept="application/json,.json" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleFile(file); event.currentTarget.value = ''; }} /><Button variant="outline" size="sm" onClick={() => void handleExport()}><ArrowUpFromLine size={15} />导出</Button><Button variant="primary" size="sm" onClick={() => setEditor({ service: createService(selectedGroupId), isNew: true })}><Plus size={16} />添加服务</Button></div>
+            <h1 title={selectedGroup?.name ?? '全部服务'}>{selectedGroup?.name ?? '全部服务'}</h1>
+            {selectedGroup && <div className="group-actions"><Button variant="ghost" size="sm" className="group-action" disabled={groupActive || !groupServices.length || shutdownState?.phase === 'stopping'} onClick={() => void handleBatch('start')}><Play size={14} />启动全部</Button><Button variant="ghost" size="sm" className="group-action" disabled={groupActive || !groupServices.length || shutdownState?.phase === 'stopping'} onClick={() => void handleBatch('restart')}><RefreshCw size={14} />重启全部</Button><Button variant="ghost" size="sm" className="group-action danger-text" disabled={!groupStopAvailable || groupStopBusy} onClick={() => void handleBatch('stop')}><Square size={13} />停止全部</Button></div>}
           </div>
-          {selectedGroup && <div className="group-toolbar"><div className="group-summary"><span className="summary-mark"><Layers3 size={15} /></span><span><strong>{selectedGroup.name}</strong><small>{groupServices.length ? `${groupServices.filter((service) => runtimeIsRunning((runtimes[service.id] ?? emptyRuntime(service.id)).status)).length}/${groupServices.length} 个运行中` : '暂无服务'}</small></span></div><div className="group-actions"><Button variant="ghost" size="sm" className="group-action" disabled={groupActive || !groupServices.length || shutdownState?.phase === 'stopping'} onClick={() => void handleBatch('start')}><Play size={14} />启动全部</Button><Button variant="ghost" size="sm" className="group-action" disabled={groupActive || !groupServices.length || shutdownState?.phase === 'stopping'} onClick={() => void handleBatch('restart')}><RefreshCw size={14} />重启全部</Button><Button variant="ghost" size="sm" className="group-action danger-text" disabled={!groupStopAvailable || groupStopBusy} onClick={() => void handleBatch('stop')}><Square size={13} />停止全部</Button></div></div>}
           {shutdownState?.phase === 'stopping' && <div className="shutdown-strip"><LoaderCircle size={14} className="spin" /><span>正在停止托管服务，暂时不能启动或重启服务。</span></div>}
           <div className="filterbar"><div className="filter-tabs"><FilterTab label="全部" active={filter === 'all'} onClick={() => setFilter('all')} /><FilterTab label="运行中" active={filter === 'running'} onClick={() => setFilter('running')} /><FilterTab label="已停止" active={filter === 'stopped'} onClick={() => setFilter('stopped')} /><FilterTab label="需关注" active={filter === 'attention'} onClick={() => setFilter('attention')} /></div><span className="list-count">{visibleServices.length} 个结果</span></div>
           <div className="service-list" tabIndex={-1}>
-            {loading ? <LoadingState /> : !visibleServices.length ? <EmptyState hasConfig={config.services.length > 0} onAdd={() => setEditor({ service: createService(selectedGroupId), isNew: true })} onClear={() => { setQuery(''); setFilter('all'); setSelectedGroupId(null); }} /> : visibleServices.map((service) => <ServiceRow key={service.id} service={service} group={groups.find((group) => group.id === service.groupId)} runtime={runtimes[service.id] ?? emptyRuntime(service.id)} resource={resources[service.id]} expanded={expandedId === service.id} logs={logs[service.id] ?? []} logMeta={logMeta[service.id]} busy={actionIds.includes(service.id)} shutdownBusy={shutdownState?.phase === 'stopping'} onSelect={(trigger) => toggleDetails(service.id, trigger)} onDetailsExitComplete={handleDetailsExitComplete} onClose={closeDetails} onAction={(action) => void handleRuntime(service.id, action)} onEdit={() => setEditor({ service, isNew: false })} onDelete={() => void handleDeleteService(service)} onOpenUrl={() => void api.openUrl(service.id)} setTab={setPanelTab} tab={panelTab} />)}
+            {loading ? <LoadingState /> : !visibleServices.length ? <EmptyState hasConfig={config.services.length > 0} onAdd={() => setEditor({ service: createService(selectedGroupId), isNew: true })} onClear={() => { setFilter('all'); setSelectedGroupId(null); }} /> : visibleServices.map((service) => <ServiceRow key={service.id} service={service} group={groups.find((group) => group.id === service.groupId)} runtime={runtimes[service.id] ?? emptyRuntime(service.id)} resource={resources[service.id]} expanded={expandedId === service.id} logs={logs[service.id] ?? []} logMeta={logMeta[service.id]} busy={actionIds.includes(service.id)} shutdownBusy={shutdownState?.phase === 'stopping'} onSelect={(trigger) => toggleDetails(service.id, trigger)} onDetailsExitComplete={handleDetailsExitComplete} onClose={closeDetails} onAction={(action) => void handleRuntime(service.id, action)} onEdit={() => setEditor({ service, isNew: false })} onDelete={() => void handleDeleteService(service)} onOpenUrl={() => void api.openUrl(service.id)} setTab={setPanelTab} tab={panelTab} />)}
           </div>
           {error && <div className="error-strip"><AlertCircle size={16} /><span>{error}</span><Button variant="ghost" size="sm" className="error-retry" onClick={() => void hydrate()}>重试</Button></div>}
         </main>
 
       </div>
-      <footer className="statusbar"><span><span className="statusbar-dot" />进程管理就绪</span><span>所有状态来自本机运行时</span></footer>
 
       <AnimatePresence initial={false}>
+        {settingsOpen && <Modal key="settings" title="设置" subtitle="调整 Avenil 的外观" onClose={() => setSettingsOpen(false)}>
+          <div className="settings-content">
+            <ThemeControl mode={theme.mode} onChange={theme.changeMode} />
+          </div>
+        </Modal>}
         {editor && <ServiceEditor key="editor" initial={editor.service} isNew={editor.isNew} groups={groups} busy={serviceSubmitBusy} onCancel={() => setEditor(null)} onSubmit={(service) => void handleServiceSubmit(service)} />}
         {groupEditor && <GroupEditor key="group" initial={groupEditor.id ? groupEditor : null} busy={groupSubmitBusy} onCancel={() => setGroupEditor(null)} onDelete={groupEditor.id ? () => void handleDeleteGroup(groupEditor) : undefined} onSubmit={handleGroupSubmit} />}
         {importDialog && <ImportDialog key="import" preview={importDialog.preview} busy={importApplyBusy} canApply={importDialog.preview.canApply && !config.services.some((service) => runtimeIsActive((runtimes[service.id] ?? emptyRuntime(service.id)).status))} onCancel={() => setImportDialog(null)} onApply={() => void handleImportApply()} />}
@@ -524,7 +538,7 @@ function NavItem({ icon, label, count, active, onClick, tone }: { icon: React.Re
 function GroupNav({ group, services, runtimes, selected, onSelect, onEdit }: { group: Group; services: Service[]; runtimes: Record<string, RuntimeSnapshot>; selected: boolean; onSelect: () => void; onEdit: () => void }) {
   const running = services.filter((service) => runtimeIsRunning((runtimes[service.id] ?? emptyRuntime(service.id)).status)).length;
   const attention = services.some((service) => ['failed', 'unknown', 'exited'].includes((runtimes[service.id] ?? emptyRuntime(service.id)).status));
-  return <div className={`group-nav ${selected ? 'selected' : ''}`}><Button variant="ghost" size="md" className="group-nav-main" type="button" aria-pressed={selected} onClick={onSelect}><ChevronRight size={14} className={selected ? 'expanded' : ''} /><span className={`group-icon ${attention ? 'attention' : ''}`}><Box size={14} /></span><span className="truncate">{group.name}</span><span className="group-count">{running}/{services.length}</span></Button><Button variant="ghost" size="icon" className="group-edit" type="button" onClick={onEdit} aria-label={`编辑${group.name}`}><MoreHorizontal size={15} /></Button></div>;
+  return <div className={`group-nav ${selected ? 'selected' : ''}`}><Button variant="ghost" size="md" className="group-nav-main" type="button" aria-pressed={selected} onClick={onSelect}><span className={`group-icon ${attention ? 'attention' : ''}`}><Box size={14} /></span><span className="truncate">{group.name}</span><span className="group-count">{running}/{services.length}</span></Button><Button variant="ghost" size="icon" className="group-edit" type="button" onClick={onEdit} aria-label={`编辑${group.name}`}><MoreHorizontal size={15} /></Button></div>;
 }
 
 function FilterTab({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) { return <Button variant="ghost" size="sm" className={`filter-tab ${active ? 'active' : ''}`} type="button" aria-pressed={active} onClick={onClick}>{label}</Button>; }
@@ -561,7 +575,7 @@ function ServiceDetails({ id, service, runtime, resource, tab, setTab, logs, log
   useEffect(() => { if (tab === 'logs' && logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [logs, tab]);
   return <motion.div id={id} className="service-details" role="region" aria-label={`${service.name} 服务详情`} variants={DETAILS_VARIANTS} initial="initial" animate="animate" exit="exit" transition={panelTransition} onClick={(event) => event.stopPropagation()}>
     <div className="service-details-status"><span className={`status-orb ${meta.tone}`}>{meta.icon}</span><div className="service-details-status-copy"><strong>{meta.label}</strong>{statusDetail && <span title={statusDetail}>{statusDetail}</span>}{runtime.exitCode !== null && <small>退出码 {runtime.exitCode}</small>}</div><div className="service-details-controls">{runtimeCanStop(runtime.status) ? <Button variant="ghost" size="sm" className="service-details-action danger-text" disabled={shutdownBusy} onClick={() => onAction('stop')}><Square size={12} />停止</Button> : <Button variant="ghost" size="sm" className="service-details-action" disabled={runtimeIsActive(runtime.status) || shutdownBusy} onClick={() => void onAction('start')}><Play size={12} />启动</Button>}<Button variant="ghost" size="sm" className="service-details-action" disabled={runtimeIsTransitioning(runtime.status) || shutdownBusy} onClick={() => onAction('restart')}><RefreshCw size={12} />重启</Button><Button variant="ghost" size="icon" className="icon-button" onClick={onEdit} aria-label="编辑服务"><Pencil size={15} /></Button><Button variant="ghost" size="icon" className="icon-button danger-icon" onClick={onDelete} aria-label="删除服务"><Trash2 size={15} /></Button><Button variant="ghost" size="icon" className="icon-button" onClick={onClose} aria-label="收起详情"><X size={17} /></Button></div></div>
-    <div className="service-details-tabs" role="tablist" aria-label="服务详情"><Button variant="ghost" size="sm" className={tab === 'config' ? 'active' : ''} type="button" role="tab" id={`${id}-tab-config`} aria-selected={tab === 'config'} aria-controls={`${id}-panel`} onClick={() => setTab('config')}>配置</Button><Button variant="ghost" size="sm" className={tab === 'logs' ? 'active' : ''} type="button" role="tab" id={`${id}-tab-logs`} aria-selected={tab === 'logs'} aria-controls={`${id}-panel`} onClick={() => setTab('logs')}>日志{logs.length ? <b>{logs.length > 99 ? '99+' : logs.length}</b> : null}</Button><Button variant="ghost" size="sm" className={tab === 'metrics' ? 'active' : ''} type="button" role="tab" id={`${id}-tab-metrics`} aria-selected={tab === 'metrics'} aria-controls={`${id}-panel`} onClick={() => setTab('metrics')}>指标</Button></div>
+    <div className="service-details-tabs" role="tablist" aria-label="服务详情"><Button variant="ghost" size="sm" className={tab === 'logs' ? 'active' : ''} type="button" role="tab" id={`${id}-tab-logs`} aria-selected={tab === 'logs'} aria-controls={`${id}-panel`} onClick={() => setTab('logs')}>日志{logs.length ? <b>{logs.length > 99 ? '99+' : logs.length}</b> : null}</Button><Button variant="ghost" size="sm" className={tab === 'config' ? 'active' : ''} type="button" role="tab" id={`${id}-tab-config`} aria-selected={tab === 'config'} aria-controls={`${id}-panel`} onClick={() => setTab('config')}>配置</Button><Button variant="ghost" size="sm" className={tab === 'metrics' ? 'active' : ''} type="button" role="tab" id={`${id}-tab-metrics`} aria-selected={tab === 'metrics'} aria-controls={`${id}-panel`} onClick={() => setTab('metrics')}>指标</Button></div>
     <div className="service-details-body" id={`${id}-panel`} role="tabpanel" aria-labelledby={`${id}-tab-${tab}`}>{tab === 'config' && <ConfigView service={service} onOpenUrl={onOpenUrl} />}{tab === 'logs' && <LogView logs={logs} meta={logMeta} containerRef={logRef} />}{tab === 'metrics' && <MetricsView runtime={runtime} resource={resource} />}</div>
   </motion.div>;
 }
@@ -586,7 +600,7 @@ function ServiceEditor({ initial, isNew, groups, busy, onCancel, onSubmit }: { i
   const [advanced, setAdvanced] = useState(false);
   const update = <K extends keyof Service>(key: K, value: Service[K]) => setDraft((current) => ({ ...current, [key]: value }));
   const updateEnv = (index: number, patch: Partial<EnvVar>) => setDraft((current) => ({ ...current, env: current.env.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item) }));
-  return <Modal title={isNew ? '添加服务' : '编辑服务'} subtitle="配置一个由 Avenil 管理的本地前台进程" blocked={busy} onClose={onCancel} wide><form className="editor-form" onSubmit={(event) => { event.preventDefault(); onSubmit(draft); }}><div className="form-grid two"><Field label="服务名称" required><input value={draft.name} onChange={(event) => update('name', event.target.value)} placeholder="例如：订单 API" autoFocus /></Field><Field label="项目组"><select value={draft.groupId ?? ''} onChange={(event) => update('groupId', event.target.value || null)}><option value="">未分组</option>{groups.map((group) => <option value={group.id} key={group.id}>{group.name}</option>)}</select></Field></div><Field label="工作目录" required hint="命令会在此目录下执行"><div className="input-with-icon"><input value={draft.workdir} onChange={(event) => update('workdir', event.target.value)} placeholder="/Users/you/projects/service" /><FolderOpen size={15} /></div></Field><Field label="启动命令" required><div className="command-input"><span>$</span><input value={draft.command} onChange={(event) => update('command', event.target.value)} placeholder="pnpm dev / mvn spring-boot:run / python -m app" /></div></Field><div className="form-grid two"><Field label="端口" hint="启用本地 TCP 就绪检查"><input type="number" min="1" max="65535" value={draft.port ?? ''} onChange={(event) => update('port', event.target.value ? Number(event.target.value) : null)} placeholder="可选" /></Field><Field label="URL" hint="仅用于打开地址"><input value={draft.url ?? ''} onChange={(event) => update('url', event.target.value || null)} placeholder="http://localhost:3000" /></Field></div><div className="form-section"><div className="form-section-head"><div><strong>环境变量</strong><span>导出配置时值会自动脱敏</span></div><Button variant="ghost" size="sm" className="form-action" type="button" onClick={() => setDraft((current) => ({ ...current, env: [...current.env, { key: '', value: '', secret: false }] }))}><Plus size={14} />添加变量</Button></div>{draft.env.length ? <div className="env-list">{draft.env.map((item, index) => <div className="env-row" key={`${index}-${item.key}`}><input value={item.key} onChange={(event) => updateEnv(index, { key: event.target.value })} placeholder="KEY" /><input type={item.secret ? 'password' : 'text'} value={item.value} onChange={(event) => updateEnv(index, { value: event.target.value })} placeholder="值" /><label className="secret-check"><input type="checkbox" checked={item.secret} onChange={(event) => updateEnv(index, { secret: event.target.checked })} />敏感</label><Button variant="ghost" size="icon" className="icon-button" type="button" onClick={() => setDraft((current) => ({ ...current, env: current.env.filter((_, itemIndex) => itemIndex !== index) }))} aria-label="删除变量"><X size={14} /></Button></div>)}</div> : <div className="form-empty">暂未添加环境变量</div>}</div><Button variant="ghost" size="md" className="advanced-toggle" type="button" aria-expanded={advanced} onClick={() => setAdvanced(!advanced)}><ChevronDown size={15} className={advanced ? 'rotate' : ''} />高级设置<span>Shell 与日志轮转</span></Button>{advanced && <div className="advanced-panel"><div className="form-grid two"><Field label="Shell 程序"><input value={draft.shell.program} onChange={(event) => update('shell', { ...draft.shell, program: event.target.value })} /></Field><Field label="Shell 参数"><input value={draft.shell.args.join(' ')} onChange={(event) => update('shell', { ...draft.shell, args: event.target.value.split(' ').filter(Boolean) })} /></Field></div><div className="form-grid three"><Field label="单文件上限"><input type="number" min={64 * 1024} max={16 * 1024 * 1024} value={draft.log.maxBytes} onChange={(event) => update('log', { ...draft.log, maxBytes: Number(event.target.value) })} /></Field><Field label="轮转文件数"><input type="number" min="1" max="10" value={draft.log.rotateCount} onChange={(event) => update('log', { ...draft.log, rotateCount: Number(event.target.value) })} /></Field><Field label="内存上限"><input type="number" min={64 * 1024} max={4 * 1024 * 1024} value={draft.log.maxMemoryBytes} onChange={(event) => update('log', { ...draft.log, maxMemoryBytes: Number(event.target.value) })} /></Field></div><p className="field-note">日志文件会按服务隔离并按大小轮转，内存日志超限会丢弃较早内容。</p></div>}<div className="modal-actions"><Button variant="outline" size="sm" type="button" onClick={onCancel}>取消</Button><Button variant="primary" size="sm" type="submit" disabled={busy}>{busy ? <LoaderCircle size={15} className="spin" /> : <Check size={15} />} {busy ? '保存中…' : '保存服务'}</Button></div></form></Modal>;
+  return <Modal title={isNew ? '添加服务' : '编辑服务'} subtitle="配置一个由 Avenil 管理的本地前台进程" blocked={busy} onClose={onCancel} wide><form className="editor-form" onSubmit={(event) => { event.preventDefault(); onSubmit(draft); }}><div className="form-grid two"><Field label="服务名称" required><input value={draft.name} onChange={(event) => update('name', event.target.value)} placeholder="例如：订单 API" autoFocus /></Field><Field label="项目组"><Select value={draft.groupId ?? ''} disabled={busy} onValueChange={(value) => update('groupId', value || null)}><SelectTrigger aria-label="项目组"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="">未分组</SelectItem>{groups.map((group) => <SelectItem value={group.id} key={group.id}>{group.name}</SelectItem>)}</SelectContent></Select></Field></div><Field label="工作目录" required hint="命令会在此目录下执行"><div className="input-with-icon"><input value={draft.workdir} onChange={(event) => update('workdir', event.target.value)} placeholder="/Users/you/projects/service" /><FolderOpen size={15} /></div></Field><Field label="启动命令" required><div className="command-input"><span>$</span><input value={draft.command} onChange={(event) => update('command', event.target.value)} placeholder="pnpm dev / mvn spring-boot:run / python -m app" /></div></Field><div className="form-grid two"><Field label="端口" hint="启用本地 TCP 就绪检查"><input type="number" min="1" max="65535" value={draft.port ?? ''} onChange={(event) => update('port', event.target.value ? Number(event.target.value) : null)} placeholder="可选" /></Field><Field label="URL" hint="仅用于打开地址"><input value={draft.url ?? ''} onChange={(event) => update('url', event.target.value || null)} placeholder="http://localhost:3000" /></Field></div><div className="form-section"><div className="form-section-head"><div><strong>环境变量</strong><span>导出配置时值会自动脱敏</span></div><Button variant="ghost" size="sm" className="form-action" type="button" onClick={() => setDraft((current) => ({ ...current, env: [...current.env, { key: '', value: '', secret: false }] }))}><Plus size={14} />添加变量</Button></div>{draft.env.length ? <div className="env-list">{draft.env.map((item, index) => <div className="env-row" key={`${index}-${item.key}`}><input value={item.key} onChange={(event) => updateEnv(index, { key: event.target.value })} placeholder="KEY" /><input type={item.secret ? 'password' : 'text'} value={item.value} onChange={(event) => updateEnv(index, { value: event.target.value })} placeholder="值" /><label className="secret-check"><input type="checkbox" checked={item.secret} onChange={(event) => updateEnv(index, { secret: event.target.checked })} />敏感</label><Button variant="ghost" size="icon" className="icon-button" type="button" onClick={() => setDraft((current) => ({ ...current, env: current.env.filter((_, itemIndex) => itemIndex !== index) }))} aria-label="删除变量"><X size={14} /></Button></div>)}</div> : <div className="form-empty">暂未添加环境变量</div>}</div><Button variant="ghost" size="md" className="advanced-toggle" type="button" aria-expanded={advanced} onClick={() => setAdvanced(!advanced)}><ChevronDown size={15} className={advanced ? 'rotate' : ''} />高级设置<span>Shell 与日志轮转</span></Button>{advanced && <div className="advanced-panel"><div className="form-grid two"><Field label="Shell 程序"><input value={draft.shell.program} onChange={(event) => update('shell', { ...draft.shell, program: event.target.value })} /></Field><Field label="Shell 参数"><input value={draft.shell.args.join(' ')} onChange={(event) => update('shell', { ...draft.shell, args: event.target.value.split(' ').filter(Boolean) })} /></Field></div><div className="form-grid three"><Field label="单文件上限"><input type="number" min={64 * 1024} max={16 * 1024 * 1024} value={draft.log.maxBytes} onChange={(event) => update('log', { ...draft.log, maxBytes: Number(event.target.value) })} /></Field><Field label="轮转文件数"><input type="number" min="1" max="10" value={draft.log.rotateCount} onChange={(event) => update('log', { ...draft.log, rotateCount: Number(event.target.value) })} /></Field><Field label="内存上限"><input type="number" min={64 * 1024} max={4 * 1024 * 1024} value={draft.log.maxMemoryBytes} onChange={(event) => update('log', { ...draft.log, maxMemoryBytes: Number(event.target.value) })} /></Field></div><p className="field-note">日志文件会按服务隔离并按大小轮转，内存日志超限会丢弃较早内容。</p></div>}<div className="modal-actions"><Button variant="outline" size="sm" type="button" onClick={onCancel}>取消</Button><Button variant="primary" size="sm" type="submit" disabled={busy}>{busy ? <LoaderCircle size={15} className="spin" /> : <Check size={15} />} {busy ? '保存中…' : '保存服务'}</Button></div></form></Modal>;
 }
 
 function Field({ label, hint, required, children }: { label: string; hint?: string; required?: boolean; children: React.ReactNode }) { return <label className="field"><span>{label}{required && <i>*</i>}{hint && <small>{hint}</small>}</span>{children}</label>; }
@@ -603,7 +617,7 @@ function Modal({ title, subtitle, onClose, blocked, wide, children }: { title: s
   return <motion.div className="modal-backdrop" role="presentation" variants={MODAL_BACKDROP_VARIANTS} initial="initial" animate="animate" exit="exit" transition={fadeTransition} onMouseDown={(event) => { if (event.target === event.currentTarget && !blocked) onClose(); }}><motion.section ref={dialogRef} className={`modal ${wide ? 'wide' : ''}`} variants={MODAL_VARIANTS} initial="initial" animate="animate" exit="exit" transition={panelTransition} role="dialog" aria-modal="true" aria-label={title} onKeyDown={onKeyDown}><div className="modal-head"><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div><Button variant="ghost" size="icon" className="icon-button" onClick={onClose} aria-label="关闭" disabled={blocked}><X size={17} /></Button></div><fieldset disabled={blocked} className="modal-content-lock">{children}</fieldset></motion.section></motion.div>;
 }
 
-function EmptyState({ hasConfig, onAdd, onClear }: { hasConfig: boolean; onAdd: () => void; onClear: () => void }) { return <div className="empty-state"><div className="empty-icon">{hasConfig ? <Search size={22} /> : <Server size={22} />}</div><h2>{hasConfig ? '没有匹配的服务' : '开始管理本地服务'}</h2><p>{hasConfig ? '换个关键词或清除当前筛选条件。' : '添加 Java、Node、Python 或前端项目，让多个服务在一个窗口里井然有序。'}</p>{hasConfig ? <Button variant="outline" size="sm" onClick={onClear}>清除筛选</Button> : <Button variant="primary" size="sm" onClick={onAdd}><Plus size={15} />添加第一个服务</Button>}</div>; }
+function EmptyState({ hasConfig, onAdd, onClear }: { hasConfig: boolean; onAdd: () => void; onClear: () => void }) { return <div className="empty-state"><div className="empty-icon">{hasConfig ? <Search size={22} /> : <Server size={22} />}</div><h2>{hasConfig ? '没有匹配的服务' : '开始管理本地服务'}</h2><p>{hasConfig ? '切换服务分类或清除当前筛选条件。' : '添加 Java、Node、Python 或前端项目，让多个服务在一个窗口里井然有序。'}</p>{hasConfig ? <Button variant="outline" size="sm" onClick={onClear}>清除筛选</Button> : <Button variant="primary" size="sm" onClick={onAdd}><Plus size={15} />添加第一个服务</Button>}</div>; }
 function LoadingState() { return <div className="loading-state"><LoaderCircle size={18} className="spin" />正在载入本机配置…</div>; }
 function DesktopPrompt() { return <div className="desktop-prompt"><div className="desktop-prompt-card"><BrandMark large /><h1>Avenil 需要桌面运行时</h1><p>当前页面运行在普通浏览器中。请打开 Tauri 桌面应用管理本机进程；浏览器预览仅在地址后添加 <code>?preview=1</code> 时启用演示数据。</p><div className="prompt-note"><Info size={15} />普通浏览器不会自动切换到模拟模式，也不会访问本机服务。</div></div></div>; }
 function errorText(reason: unknown) { return reason instanceof Error ? reason.message : typeof reason === 'string' ? reason : '操作失败，请稍后重试'; }

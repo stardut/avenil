@@ -1,5 +1,6 @@
-use std::path::Path;
+use std::{fs, path::Path};
 use serde_json::Value;
+use quick_xml::{events::Event, Reader};
 use super::{candidate, env_from_object, resolve_value, service_defaults, shell_quote, ParsedResult};
 
 pub fn parse(text: &str, workspace: &Path) -> Result<ParsedResult, String> {
@@ -26,6 +27,7 @@ pub fn parse(text: &str, workspace: &Path) -> Result<ParsedResult, String> {
         let parsed = match kind {
             "node-terminal" => parse_node_terminal(config, &name, workspace),
             "node" | "pwa-node" => parse_node(config, &name, workspace),
+            "java" => parse_java(config, &name, workspace),
             "python" | "debugpy" => parse_python(config, &name, workspace),
             "" => Ok(candidate(name, None, "unsupported", vec!["缺少调试扩展 type".into()], vec!["type".into()])),
             _ => Ok(candidate(name, None, "unsupported", vec![format!("未知或扩展专属的 VS Code type: {kind}")], vec![])),
@@ -66,10 +68,16 @@ fn parse_node_terminal(config: &serde_json::Map<String, Value>, name: &str, work
 }
 
 fn parse_node(config: &serde_json::Map<String, Value>, name: &str, workspace: &Path) -> Result<super::ParsedCandidate, String> {
-    let Some(program) = config.get("program").and_then(Value::as_str) else {
-        return Ok(candidate(name.into(), None, "needsInput", vec![], vec!["program".into()]));
+    let executable = match optional_string(config, "runtimeExecutable") {
+        Ok(Some(value)) => value,
+        Ok(None) => "node",
+        Err(error) => return Ok(candidate(name.into(), None, "needsInput", vec![error], vec!["runtimeExecutable".into()])),
     };
-    let executable = config.get("runtimeExecutable").and_then(Value::as_str).unwrap_or("node");
+    let program = match optional_string(config, "program") {
+        Ok(Some(value)) => value,
+        Ok(None) => return parse_node_script(config, name, workspace, executable),
+        Err(error) => return Ok(candidate(name.into(), None, "needsInput", vec![error], vec!["program".into()])),
+    };
     let values = match resolve_values(executable, config.get("runtimeArgs"), program, config.get("args"), workspace) {
         Ok(values) => values,
         Err(error) => return Ok(candidate(name.into(), None, "needsInput", vec![error], vec!["动态变量或参数".into()])),
@@ -88,6 +96,170 @@ fn parse_node(config: &serde_json::Map<String, Value>, name: &str, workspace: &P
     if !missing.is_empty() { warnings.push("存在 IDE 任务或外部环境语义，需在 Avenil 中重新确认".into()); }
     let service = service_defaults(name.into(), &cwd, values, env);
     Ok(candidate(service.name.clone(), Some(service), if missing.is_empty() { "ready" } else { "needsInput" }, warnings, missing))
+}
+
+fn parse_node_script(config: &serde_json::Map<String, Value>, name: &str, workspace: &Path, executable: &str) -> Result<super::ParsedCandidate, String> {
+    if !is_npm_executable(executable) {
+        return Ok(candidate(name.into(), None, "needsInput", vec![], vec!["program".into()]));
+    }
+    let runtime_args = match string_array(config.get("runtimeArgs")) {
+        Ok(values) => values,
+        Err(error) => return Ok(candidate(name.into(), None, "needsInput", vec![error], vec!["runtimeArgs".into()])),
+    };
+    if runtime_args.len() < 2 || !matches!(runtime_args.first().map(String::as_str), Some("run" | "run-script")) {
+        return Ok(candidate(name.into(), None, "needsInput", vec!["npm 启动配置需要 runtimeArgs=run <script>".into()], vec!["runtimeArgs".into()]));
+    }
+    let args = match string_array(config.get("args")) {
+        Ok(values) => values,
+        Err(error) => return Ok(candidate(name.into(), None, "needsInput", vec![error], vec!["args".into()])),
+    };
+    let mut values = vec![executable.to_string()];
+    values.extend(runtime_args);
+    if !args.is_empty() {
+        values.push("--".into());
+        values.extend(args);
+    }
+    let command = match resolve_command_values(&values, workspace) {
+        Ok(value) => value,
+        Err(error) => return Ok(candidate(name.into(), None, "needsInput", vec![error], vec!["动态变量或参数".into()])),
+    };
+    let cwd = match resolve_cwd(config, workspace) {
+        Ok(value) => value,
+        Err(error) => return Ok(candidate(name.into(), None, "needsInput", vec![error], vec!["cwd".into()])),
+    };
+    let env = match env_from_object(config.get("env"), workspace) {
+        Ok(value) => value,
+        Err(error) => return Ok(candidate(name.into(), None, "needsInput", vec![error], vec!["env".into()])),
+    };
+    let mut warnings = vec!["按普通前台运行导入，不保留 IDE 调试能力".into()];
+    let mut missing = special_fields(config);
+    if config.contains_key("envFile") { missing.push("envFile".into()); }
+    if !missing.is_empty() { warnings.push("存在 IDE 任务或外部环境语义，需在 Avenil 中重新确认".into()); }
+    let service = service_defaults(name.into(), &cwd, command, env);
+    Ok(candidate(service.name.clone(), Some(service), if missing.is_empty() { "ready" } else { "needsInput" }, warnings, missing))
+}
+
+fn parse_java(config: &serde_json::Map<String, Value>, name: &str, workspace: &Path) -> Result<super::ParsedCandidate, String> {
+    let main_class = match optional_string(config, "mainClass") {
+        Ok(Some(value)) => value,
+        Ok(None) => return Ok(candidate(name.into(), None, "needsInput", vec![], vec!["mainClass".into()])),
+        Err(error) => return Ok(candidate(name.into(), None, "needsInput", vec![error], vec!["mainClass".into()])),
+    };
+    let cwd = match resolve_cwd(config, workspace) {
+        Ok(value) => value,
+        Err(error) => return Ok(candidate(name.into(), None, "needsInput", vec![error], vec!["cwd".into()])),
+    };
+    let pom = match fs::read_to_string(cwd.join("pom.xml")) {
+        Ok(value) => value,
+        Err(_) => return Ok(candidate(name.into(), None, "needsInput", vec!["Java 配置需要可识别的 Maven Spring Boot 项目".into()], vec!["Java 构建命令".into()])),
+    };
+    let has_plugin = match has_spring_boot_maven_plugin(&pom) {
+        Ok(value) => value,
+        Err(error) => return Ok(candidate(name.into(), None, "needsInput", vec![error], vec!["Java 构建命令".into()])),
+    };
+    if !has_plugin {
+        return Ok(candidate(name.into(), None, "needsInput", vec!["当前 Java 项目未声明 spring-boot-maven-plugin，Avenil 不猜测 Java classpath 或启动命令".into()], vec!["Java 构建命令".into()]));
+    }
+    let main_class = match resolve_value(main_class, workspace) {
+        Ok(value) => value,
+        Err(error) => return Ok(candidate(name.into(), None, "needsInput", vec![error], vec!["mainClass".into()])),
+    };
+    let vm_args = match config.get("vmArgs") {
+        None => String::new(),
+        Some(Value::String(value)) => match resolve_value(value, workspace) {
+            Ok(value) => value,
+            Err(error) => return Ok(candidate(name.into(), None, "needsInput", vec![error], vec!["vmArgs".into()])),
+        },
+        Some(_) => return Ok(candidate(name.into(), None, "needsInput", vec!["vmArgs 必须是字符串".into()], vec!["vmArgs".into()])),
+    };
+    let application_args = match java_application_args(config.get("args")) {
+        Ok(value) => value,
+        Err(error) => return Ok(candidate(name.into(), None, "needsInput", vec![error], vec!["args".into()])),
+    };
+    let maven = if cwd.join("mvnw").is_file() { "./mvnw" } else { "mvn" };
+    let mut values = vec![maven.to_string(), "spring-boot:run".into(), format!("-Dspring-boot.run.main-class={main_class}")];
+    if !vm_args.trim().is_empty() { values.push(format!("-Dspring-boot.run.jvmArguments={vm_args}")); }
+    if !application_args.is_empty() { values.push(format!("-Dspring-boot.run.arguments={}", application_args.join(","))); }
+    let command = match resolve_command_values(&values, workspace) {
+        Ok(value) => value,
+        Err(error) => return Ok(candidate(name.into(), None, "needsInput", vec![error], vec!["动态变量或参数".into()])),
+    };
+    let env = match env_from_object(config.get("env"), workspace) {
+        Ok(value) => value,
+        Err(error) => return Ok(candidate(name.into(), None, "needsInput", vec![error], vec!["env".into()])),
+    };
+    let mut warnings = vec!["按 Maven Spring Boot 普通前台运行导入，不保留 Java 调试能力".into()];
+    if config.contains_key("preLaunchTask") { warnings.push("未单独执行 preLaunchTask；spring-boot:run 已负责项目编译和启动".into()); }
+    let mut missing: Vec<String> = special_fields(config).into_iter().filter(|field| field != "preLaunchTask").collect();
+    if config.contains_key("envFile") { missing.push("envFile".into()); }
+    if !missing.is_empty() { warnings.push("存在 IDE 任务或外部环境语义，需在 Avenil 中重新确认".into()); }
+    let service = service_defaults(name.into(), &cwd, command, env);
+    Ok(candidate(service.name.clone(), Some(service), if missing.is_empty() { "ready" } else { "needsInput" }, warnings, missing))
+}
+
+fn java_application_args(value: Option<&Value>) -> Result<Vec<String>, String> {
+    let Some(value) = value else { return Ok(vec![]); };
+    match value {
+        Value::String(value) if value.trim().is_empty() => Ok(vec![]),
+        Value::Array(values) if values.is_empty() => Ok(vec![]),
+        Value::Array(_) | Value::String(_) => Err("Java args 非空时暂不自动转换，请在 Avenil 中确认启动参数".into()),
+        _ => Err("Java args 必须是字符串或字符串数组".into()),
+    }
+}
+
+fn is_npm_executable(executable: &str) -> bool {
+    Path::new(executable).file_name().and_then(|name| name.to_str()).is_some_and(|name| name == "npm" || name == "npm.cmd")
+}
+
+fn optional_string<'a>(config: &'a serde_json::Map<String, Value>, key: &str) -> Result<Option<&'a str>, String> {
+    match config.get(key) {
+        None => Ok(None),
+        Some(Value::String(value)) => Ok(Some(value)),
+        Some(_) => Err(format!("{key} 必须是字符串")),
+    }
+}
+
+fn has_spring_boot_maven_plugin(text: &str) -> Result<bool, String> {
+    let mut reader = Reader::from_str(text);
+    reader.config_mut().trim_text(true);
+    let mut depth = 0usize;
+    let mut plugin_depth = None;
+    let mut artifact_depth = None;
+    let mut artifact_text = String::new();
+    loop {
+        match reader.read_event() {
+            Ok(Event::Start(event)) => {
+                depth += 1;
+                if event.name().as_ref() == b"plugin" {
+                    plugin_depth = Some(depth);
+                } else if event.name().as_ref() == b"artifactId" && plugin_depth == Some(depth.saturating_sub(1)) {
+                    artifact_depth = Some(depth);
+                    artifact_text.clear();
+                }
+            }
+            Ok(Event::Text(event)) if artifact_depth == Some(depth) => {
+                artifact_text.push_str(&event.unescape().map_err(|error| format!("Maven POM XML 解析失败: {error}"))?);
+            }
+            Ok(Event::CData(event)) if artifact_depth == Some(depth) => {
+                artifact_text.push_str(&String::from_utf8_lossy(event.as_ref()));
+            }
+            Ok(Event::End(event)) => {
+                if artifact_depth == Some(depth) && event.name().as_ref() == b"artifactId" {
+                    if artifact_text.trim() == "spring-boot-maven-plugin" {
+                        return Ok(true);
+                    }
+                    artifact_depth = None;
+                }
+                if plugin_depth == Some(depth) && event.name().as_ref() == b"plugin" {
+                    plugin_depth = None;
+                }
+                depth = depth.saturating_sub(1);
+            }
+            Ok(Event::Eof) => return Ok(false),
+            Err(error) => return Err(format!("Maven POM XML 解析失败: {error}")),
+            _ => {}
+        }
+    }
 }
 
 fn parse_python(config: &serde_json::Map<String, Value>, name: &str, workspace: &Path) -> Result<super::ParsedCandidate, String> {
@@ -129,11 +301,15 @@ fn resolve_cwd(config: &serde_json::Map<String, Value>, workspace: &Path) -> Res
 }
 
 fn resolve_values(executable: &str, runtime_args: Option<&Value>, program: &str, args: Option<&Value>, workspace: &Path) -> Result<String, String> {
-    let mut values = vec![resolve_value(executable, workspace)?];
-    for value in string_array(runtime_args)? { values.push(resolve_value(&value, workspace)?); }
-    values.push(resolve_value(program, workspace)?);
-    for value in string_array(args)? { values.push(resolve_value(&value, workspace)?); }
-    Ok(values.iter().map(|value| shell_quote(value)).collect::<Vec<_>>().join(" "))
+    let mut values = vec![executable.to_string()];
+    values.extend(string_array(runtime_args)?);
+    values.push(program.to_string());
+    values.extend(string_array(args)?);
+    resolve_command_values(&values, workspace)
+}
+
+fn resolve_command_values(values: &[String], workspace: &Path) -> Result<String, String> {
+    values.iter().map(|value| resolve_value(value, workspace)).map(|value| value.map(|item| shell_quote(&item))).collect::<Result<Vec<_>, _>>().map(|values| values.join(" "))
 }
 
 fn string_array(value: Option<&Value>) -> Result<Vec<String>, String> {

@@ -55,7 +55,8 @@ Keep your editor for writing code. Let Avenil handle the everyday work of runnin
 - **Follow the output.** Read stdout and stderr together, and keep disk usage bounded with log rotation.
 - **See the runtime state.** Inspect process count, CPU, memory, and optional local TCP readiness checks.
 - **Bring your IDE configuration.** Preview supported VS Code, Cursor, and JetBrains run configurations before adding them to a new group.
-- **Keep configuration local.** Save service definitions on your Mac. Export a shareable configuration with environment values removed.
+- **Control it from an agent-friendly CLI.** Use the same service, group, configuration, log, and resource actions from a shell or AI agent while the desktop app remains the single process owner.
+- **Keep configuration local.** Save service definitions on your Mac. Export a shareable configuration with environment values preserved as configured.
 - **Make it comfortable.** Use light, dark, or system appearance, with native macOS window controls.
 
 <details>
@@ -77,6 +78,27 @@ Use commands that stay in the foreground. Group actions do not imply dependency 
 
 Already have IDE run configurations? Click **从 IDE 导入** (Import from IDE), choose the project root, and review the supported entries before importing. [Supported formats and limits →](docs/USAGE.md#ide-import)
 
+## Use the CLI
+
+The desktop app exposes a local Unix socket for the CLI. Keep Avenil open (closing the window only hides it), then run commands against the same runtime that the interface displays:
+
+```bash
+# From a source checkout
+npm run cli -- status --json
+npm run cli -- start "订单 API"
+npm run cli -- logs "订单 API" --limit 100
+npm run cli -- group restart "电商本地环境"
+
+# With an installed app, choose "Install CLI" on first launch
+avenil status --json
+```
+
+Service and group selectors accept either UUIDs or exact names. Use `--json` for automation. Configuration replacement, service/group deletion, and quitting require an explicit `--yes`; configuration export preserves environment variable values. Run `avenil help` (or `avenil --help`) for the complete command list. The socket is local to the current Mac and is not a remote-control or network API.
+
+On first launch, Avenil can install a per-user `~/.local/bin/avenil` link without changing system directories. The same action and the exact commands for adding `~/.local/bin` to `~/.zprofile` are available later in **Settings → CLI**. Open a new terminal, or source the displayed profile command, after changing PATH.
+
+Pass environment values directly with `--env KEY=VALUE`; configured values are stored and exported as entered.
+
 ## How it behaves
 
 | Area | Current behavior |
@@ -85,7 +107,7 @@ Already have IDE run configurations? Click **从 IDE 导入** (Import from IDE),
 | Commands | Executes the configured shell, arguments, command, and working directory. The default shell is `/bin/zsh -lc`. |
 | Readiness | An optional port checks TCP connectivity to `127.0.0.1`, with a 30-second startup deadline. This is not an HTTP health check. |
 | Environment | Configured values override the app's inherited environment. `.env` files are not loaded automatically. |
-| Configuration | Stored locally as JSON. Environment values are **not encrypted at rest**; exports remove all values. |
+| Configuration | Stored locally as JSON. Environment values are **not encrypted at rest**; exports preserve configured values. |
 | Closing the window | Hides the window and keeps Avenil in the macOS menu bar. Choosing Quit from the tray menu asks for confirmation, then stops managed services; a failed shutdown keeps the app available. |
 
 See the [usage guide](docs/USAGE.md) for configuration storage, logging, import rules, and troubleshooting.

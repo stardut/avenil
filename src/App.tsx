@@ -7,6 +7,7 @@ import {
   ArrowDownToLine,
   ArrowUpFromLine,
   Box,
+  Braces,
   Check,
   ChevronDown,
   ChevronRight,
@@ -17,6 +18,7 @@ import {
   Info,
   Layers3,
   LayoutList,
+  List,
   LoaderCircle,
   Pencil,
   Play,
@@ -32,6 +34,7 @@ import {
 } from 'lucide-react';
 import { getApi, inTauri, previewMode } from './api';
 import IdeImportDialog from './IdeImportDialog';
+import CliInstallControl from './CliInstallControl';
 import WorkspaceTransferMenu from './WorkspaceTransferMenu';
 import ThemeControl, { LanguageControl, useTheme } from './ThemeControl';
 import BrandMark from './components/BrandMark';
@@ -46,6 +49,7 @@ import {
   AppConfig,
   BatchAction,
   EnvVar,
+  CliInstallInfo,
   Group,
   ImportPreview,
   IdeImportInput,
@@ -89,6 +93,15 @@ const formatTime = (value: string | null | undefined, locale: string) => value ?
 const formatCommand = (value: string) => value.length > 52 ? `${value.slice(0, 52)}…` : value;
 const uid = () => crypto.randomUUID();
 const isFocusableElement = (element: HTMLElement | null) => Boolean(element?.isConnected && element.getClientRects().length);
+const CLI_PROMPT_DISMISSED_KEY = 'rundock.cli-install-prompt-dismissed';
+
+function cliPromptWasDismissed() {
+  try { return window.localStorage.getItem(CLI_PROMPT_DISMISSED_KEY) === '1'; } catch { return false; }
+}
+
+function markCliPromptDismissed() {
+  try { window.localStorage.setItem(CLI_PROMPT_DISMISSED_KEY, '1'); } catch { /* best effort */ }
+}
 
 const FADE_TRANSITION = { duration: 0.18, ease: EASE_OUT } as const;
 
@@ -129,6 +142,10 @@ function App() {
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [cliInstallInfo, setCliInstallInfo] = useState<CliInstallInfo | null>(null);
+  const [cliInstallError, setCliInstallError] = useState<string | null>(null);
+  const [cliInstallPromptOpen, setCliInstallPromptOpen] = useState(false);
+  const [cliInstallBusy, setCliInstallBusy] = useState(false);
   const [panelTab, setPanelTab] = useState<PanelTab>('logs');
   const [editor, setEditor] = useState<{ service: Service; isNew: boolean } | null>(null);
   const [groupEditor, setGroupEditor] = useState<Group | null>(null);
@@ -153,6 +170,8 @@ function App() {
   const groupSubmitRef = useRef(false);
   const importApplyRef = useRef(false);
   const quitRequestRef = useRef(false);
+  const cliInfoRequestRef = useRef(0);
+  const cliInstallGenerationRef = useRef(0);
   const notify = useCallback((message: string, tone: 'error' | 'success' | 'info' = 'info') => {
     if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
     setToast({ message, tone });
@@ -192,6 +211,21 @@ function App() {
     if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
   }, []);
 
+  const loadCliInstallInfo = useCallback(async () => {
+    const requestId = ++cliInfoRequestRef.current;
+    const installGeneration = cliInstallGenerationRef.current;
+    setCliInstallError(null);
+    try {
+      const next = await api.cliInstallInfo();
+      if (requestId !== cliInfoRequestRef.current || installGeneration !== cliInstallGenerationRef.current) return;
+      setCliInstallInfo(next);
+    } catch (reason) {
+      if (requestId !== cliInfoRequestRef.current || installGeneration !== cliInstallGenerationRef.current) return;
+      setCliInstallInfo(null);
+      setCliInstallError(errorText(reason, t));
+    }
+  }, [t]);
+
   const hydrate = useCallback(async () => {
     if (!previewMode && !inTauri) {
       setDesktopUnavailable(true);
@@ -204,15 +238,51 @@ function App() {
       setConfig(nextConfig);
       setRuntimes(Object.fromEntries(nextRuntime.map((snapshot) => [snapshot.serviceId, snapshot])));
       setResources(Object.fromEntries(nextResources.map((snapshot) => [snapshot.serviceId, snapshot])));
+      await loadCliInstallInfo();
       setError(null);
     } catch (reason) {
       setError(errorText(reason, t));
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, [loadCliInstallInfo, t]);
 
   useEffect(() => { void hydrate(); }, [hydrate]);
+
+  useEffect(() => {
+    if (!inTauri || settingsOpen || !cliInstallInfo?.supported || cliInstallInfo.installed || cliPromptWasDismissed()) return;
+    setCliInstallPromptOpen(true);
+  }, [cliInstallInfo, settingsOpen]);
+
+  const dismissCliInstallPrompt = useCallback(() => {
+    markCliPromptDismissed();
+    setCliInstallPromptOpen(false);
+  }, []);
+
+  const openSettings = useCallback(() => {
+    markCliPromptDismissed();
+    setSettingsOpen(true);
+    void loadCliInstallInfo();
+  }, [loadCliInstallInfo]);
+
+  const handleCliInstall = useCallback(async () => {
+    if (cliInstallBusy) return;
+    cliInfoRequestRef.current += 1;
+    setCliInstallError(null);
+    setCliInstallBusy(true);
+    try {
+      const next = await api.installCli();
+      cliInstallGenerationRef.current += 1;
+      setCliInstallInfo(next);
+      setCliInstallPromptOpen(false);
+      markCliPromptDismissed();
+      notify(t('toast.cliInstalled'), 'success');
+    } catch (reason) {
+      notify(errorText(reason, t), 'error');
+    } finally {
+      setCliInstallBusy(false);
+    }
+  }, [cliInstallBusy, notify, t]);
 
   useEffect(() => {
     if (!previewMode && !inTauri) return;
@@ -271,8 +341,11 @@ function App() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (settingsOpen) {
-        if (event.key === 'Escape') setSettingsOpen(false);
+      if (settingsOpen || cliInstallPromptOpen) {
+        if (event.key === 'Escape' && !cliInstallBusy) {
+          if (cliInstallPromptOpen) dismissCliInstallPrompt();
+          else setSettingsOpen(false);
+        }
         return;
       }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'n') {
@@ -290,7 +363,7 @@ function App() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [settingsOpen, closeDetails, editor, expandedId, groupEditor, ideImportBusy, ideImportOpen, importApplyBusy, importDialog, groupSubmitBusy, selectedGroupId, serviceSubmitBusy]);
+  }, [settingsOpen, cliInstallPromptOpen, cliInstallBusy, closeDetails, editor, expandedId, groupEditor, ideImportBusy, ideImportOpen, importApplyBusy, importDialog, groupSubmitBusy, selectedGroupId, serviceSubmitBusy]);
 
   const groups = useMemo(() => [...config.groups].sort((a, b) => a.sortOrder - b.sortOrder), [config.groups]);
 
@@ -518,7 +591,7 @@ function App() {
               />
             </nav>
             <input ref={fileInputRef} type="file" accept="application/json,.json" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleFile(file); event.currentTarget.value = ''; }} />
-            <div className="sidebar-settings"><Button variant="ghost" size="sm" className="sidebar-action settings-button" type="button" aria-haspopup="dialog" onClick={() => setSettingsOpen(true)}><Settings size={16} /><span>{t('sidebar.settings')}</span></Button></div>
+            <div className="sidebar-settings"><Button variant="ghost" size="sm" className="sidebar-action settings-button" type="button" aria-haspopup="dialog" onClick={openSettings}><Settings size={16} /><span>{t('sidebar.settings')}</span></Button></div>
           </div>
         </aside>
 
@@ -542,6 +615,13 @@ function App() {
           <div className="settings-content">
             <ThemeControl mode={theme.mode} onChange={theme.changeMode} />
             <LanguageControl />
+            <CliInstallControl info={cliInstallInfo} error={cliInstallError} busy={cliInstallBusy} onInstall={() => void handleCliInstall()} onRetry={() => void loadCliInstallInfo()} onCopyError={() => notify(t('toast.cliCopyFailed'), 'error')} />
+          </div>
+        </Modal>}
+        {cliInstallPromptOpen && cliInstallInfo && <Modal key="cli-install-prompt" title={t('settings.cli.firstLaunchTitle')} subtitle={t('settings.cli.firstLaunchSubtitle')} blocked={cliInstallBusy} onClose={dismissCliInstallPrompt}>
+          <div className="settings-content cli-install-prompt-content">
+            <CliInstallControl info={cliInstallInfo} error={cliInstallError} busy={cliInstallBusy} onInstall={() => void handleCliInstall()} onRetry={() => void loadCliInstallInfo()} onCopyError={() => notify(t('toast.cliCopyFailed'), 'error')} />
+            <div className="modal-actions"><Button variant="outline" size="sm" type="button" onClick={dismissCliInstallPrompt}>{t('settings.cli.later')}</Button></div>
           </div>
         </Modal>}
         {editor && <ServiceEditor key="editor" initial={editor.service} isNew={editor.isNew} groups={groups} busy={serviceSubmitBusy} onCancel={() => setEditor(null)} onSubmit={(service) => void handleServiceSubmit(service)} />}
@@ -755,14 +835,101 @@ function MetricsView({ runtime, resource }: { runtime: RuntimeSnapshot; resource
   return <div className="metrics-view"><div className="metric-cards">{cards.map((card) => <div className="metric-card" key={card.label}><span>{card.icon}</span><small>{card.label}</small><strong>{card.value}</strong></div>)}</div><div className="metric-meta"><InfoLine label={t('service.startTime')} value={formatTime(runtime.startedAt, locale)} /><InfoLine label={t('service.endTime')} value={formatTime(runtime.endedAt, locale)} /><InfoLine label={t('service.generation')} value={runtime.generation ? runtime.generation.slice(0, 16) : '—'} mono /></div>{resource && <span className="metric-updated">{t('service.sampledAt', { time: formatTime(resource.capturedAt, locale) })}</span>}</div>;
 }
 
+type EditorMode = 'json' | 'form';
+
+function cloneServiceDraft(service: Service): Service {
+  return {
+    ...service,
+    shell: { ...service.shell, args: [...service.shell.args] },
+    env: service.env.map((item) => ({ key: item.key, value: item.value })),
+    log: { ...service.log },
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function parseServiceJson(text: string, fallback: Service, invalidMessage: string): Service {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    throw new Error(invalidMessage);
+  }
+  if (!isRecord(value) || typeof value.name !== 'string' || typeof value.workdir !== 'string' || typeof value.command !== 'string' || !isRecord(value.shell) || typeof value.shell.program !== 'string' || !Array.isArray(value.shell.args) || !value.shell.args.every((item) => typeof item === 'string') || !Array.isArray(value.env) || !isRecord(value.log)) {
+    throw new Error(invalidMessage);
+  }
+  if (!value.env.every((item) => isRecord(item) && typeof item.key === 'string' && typeof item.value === 'string')) {
+    throw new Error(invalidMessage);
+  }
+  if (!Number.isInteger(value.log.maxBytes) || !Number.isInteger(value.log.rotateCount) || !Number.isInteger(value.log.maxMemoryBytes)) {
+    throw new Error(invalidMessage);
+  }
+  const groupId = value.groupId === null || typeof value.groupId === 'string' ? value.groupId : fallback.groupId;
+  const port = value.port === null || Number.isInteger(value.port) ? value.port : fallback.port;
+  const url = value.url === null || typeof value.url === 'string' ? value.url : fallback.url;
+  return {
+    id: typeof value.id === 'string' ? value.id : fallback.id,
+    name: value.name,
+    groupId,
+    workdir: value.workdir,
+    command: value.command,
+    shell: { program: value.shell.program, args: value.shell.args as string[] },
+    env: value.env.map((item) => ({ key: (item as Record<string, string>).key, value: (item as Record<string, string>).value })),
+    port: port as number | null,
+    url: url as string | null,
+    log: { maxBytes: value.log.maxBytes as number, rotateCount: value.log.rotateCount as number, maxMemoryBytes: value.log.maxMemoryBytes as number },
+  };
+}
+
 function ServiceEditor({ initial, isNew, groups, busy, onCancel, onSubmit }: { initial: Service; isNew: boolean; groups: Group[]; busy: boolean; onCancel: () => void; onSubmit: (service: Service) => void }) {
   const { t } = useI18n();
-  const [draft, setDraft] = useState<Service>(() => ({ ...initial, env: initial.env.map((item) => ({ ...item })), log: { ...initial.log } }));
+  const [draft, setDraft] = useState<Service>(() => cloneServiceDraft(initial));
+  const [mode, setMode] = useState<EditorMode>('json');
+  const [jsonText, setJsonText] = useState(() => JSON.stringify(cloneServiceDraft(initial), null, 2));
+  const [jsonError, setJsonError] = useState<string | null>(null);
   const [advanced, setAdvanced] = useState(false);
   const update = <K extends keyof Service>(key: K, value: Service[K]) => setDraft((current) => ({ ...current, [key]: value }));
   const updateEnv = (index: number, patch: Partial<EnvVar>) => setDraft((current) => ({ ...current, env: current.env.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item) }));
+  const switchMode = (nextMode: EditorMode) => {
+    if (nextMode === mode) return;
+    if (nextMode === 'form') {
+      try {
+        setDraft(parseServiceJson(jsonText, draft, t('editor.jsonInvalid')));
+        setJsonError(null);
+        setMode('form');
+      } catch (error) {
+        setJsonError(error instanceof Error ? error.message : t('editor.jsonInvalid'));
+      }
+      return;
+    }
+    setJsonText(JSON.stringify(cloneServiceDraft(draft), null, 2));
+    setJsonError(null);
+    setMode('json');
+  };
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (mode === 'json') {
+      try {
+        onSubmit(parseServiceJson(jsonText, draft, t('editor.jsonInvalid')));
+      } catch (error) {
+        setJsonError(error instanceof Error ? error.message : t('editor.jsonInvalid'));
+      }
+      return;
+    }
+    onSubmit(draft);
+  };
   return <Modal title={isNew ? t('editor.addTitle') : t('editor.editTitle')} subtitle={t('editor.subtitle')} blocked={busy} onClose={onCancel} wide>
-    <form className="editor-form" onSubmit={(event) => { event.preventDefault(); onSubmit(draft); }}>
+    <form className="editor-form" onSubmit={submit}>
+      <div className="editor-mode-switch" role="tablist" aria-label={t('editor.mode')}>
+        <span>{t('editor.mode')}</span>
+        <div className="editor-mode-tabs">
+          <Button variant="ghost" size="sm" className={mode === 'json' ? 'active' : ''} type="button" role="tab" aria-selected={mode === 'json'} onClick={() => switchMode('json')}><Braces size={14} />{t('editor.jsonMode')}</Button>
+          <Button variant="ghost" size="sm" className={mode === 'form' ? 'active' : ''} type="button" role="tab" aria-selected={mode === 'form'} onClick={() => switchMode('form')}><List size={14} />{t('editor.formMode')}</Button>
+        </div>
+      </div>
+      {mode === 'json' ? <div className="json-editor-wrap"><textarea className="json-editor" value={jsonText} onChange={(event) => { setJsonText(event.target.value); setJsonError(null); }} spellCheck={false} aria-label={t('editor.jsonMode')} />{jsonError && <p className="json-editor-error">{jsonError}</p>}</div> : <>
       <div className="form-grid two">
         <Field label={t('editor.serviceName')} required><input value={draft.name} onChange={(event) => update('name', event.target.value)} placeholder={t('editor.serviceNamePlaceholder')} autoFocus /></Field>
         <Field label={t('editor.project')}><Select value={draft.groupId ?? ''} disabled={busy} onValueChange={(value) => update('groupId', value || null)}><SelectTrigger aria-label={t('editor.project')}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="">{t('service.ungrouped')}</SelectItem>{groups.map((group) => <SelectItem value={group.id} key={group.id}>{group.name}</SelectItem>)}</SelectContent></Select></Field>
@@ -774,11 +941,12 @@ function ServiceEditor({ initial, isNew, groups, busy, onCancel, onSubmit }: { i
         <Field label={t('editor.url')} hint={t('editor.urlHint')}><input value={draft.url ?? ''} onChange={(event) => update('url', event.target.value || null)} placeholder="http://localhost:3000" /></Field>
       </div>
       <div className="form-section">
-        <div className="form-section-head"><div><strong>{t('editor.envTitle')}</strong><span>{t('editor.envDescription')}</span></div><Button variant="ghost" size="sm" className="form-action" type="button" onClick={() => setDraft((current) => ({ ...current, env: [...current.env, { key: '', value: '', secret: false }] }))}><Plus size={14} />{t('editor.addVariable')}</Button></div>
-        {draft.env.length ? <div className="env-list">{draft.env.map((item, index) => <div className="env-row" key={`${index}-${item.key}`}><input value={item.key} onChange={(event) => updateEnv(index, { key: event.target.value })} placeholder={t('editor.keyPlaceholder')} /><input type={item.secret ? 'password' : 'text'} value={item.value} onChange={(event) => updateEnv(index, { value: event.target.value })} placeholder={t('editor.valuePlaceholder')} /><label className="secret-check"><input type="checkbox" checked={item.secret} onChange={(event) => updateEnv(index, { secret: event.target.checked })} />{t('editor.secret')}</label><Button variant="ghost" size="icon" className="icon-button" type="button" onClick={() => setDraft((current) => ({ ...current, env: current.env.filter((_, itemIndex) => itemIndex !== index) }))} aria-label={t('editor.deleteVariable')}><X size={14} /></Button></div>)}</div> : <div className="form-empty">{t('editor.envEmpty')}</div>}
+        <div className="form-section-head"><div><strong>{t('editor.envTitle')}</strong><span>{t('editor.envDescription')}</span></div><Button variant="ghost" size="sm" className="form-action" type="button" onClick={() => setDraft((current) => ({ ...current, env: [...current.env, { key: '', value: '' }] }))}><Plus size={14} />{t('editor.addVariable')}</Button></div>
+        {draft.env.length ? <div className="env-list">{draft.env.map((item, index) => <div className="env-row" key={`${index}-${item.key}`}><input value={item.key} onChange={(event) => updateEnv(index, { key: event.target.value })} placeholder={t('editor.keyPlaceholder')} /><input value={item.value} onChange={(event) => updateEnv(index, { value: event.target.value })} placeholder={t('editor.valuePlaceholder')} /><Button variant="ghost" size="icon" className="icon-button" type="button" onClick={() => setDraft((current) => ({ ...current, env: current.env.filter((_, itemIndex) => itemIndex !== index) }))} aria-label={t('editor.deleteVariable')}><X size={14} /></Button></div>)}</div> : <div className="form-empty">{t('editor.envEmpty')}</div>}
       </div>
       <Button variant="ghost" size="md" className="advanced-toggle" type="button" aria-expanded={advanced} onClick={() => setAdvanced(!advanced)}><ChevronDown size={15} className={advanced ? 'rotate' : ''} />{t('editor.advanced')}<span>{t('editor.advancedDescription')}</span></Button>
       {advanced && <div className="advanced-panel"><div className="form-grid two"><Field label={t('editor.shellProgram')}><input value={draft.shell.program} onChange={(event) => update('shell', { ...draft.shell, program: event.target.value })} /></Field><Field label={t('editor.shellArgs')}><input value={draft.shell.args.join(' ')} onChange={(event) => update('shell', { ...draft.shell, args: event.target.value.split(' ').filter(Boolean) })} /></Field></div><div className="form-grid three"><Field label={t('editor.singleFileLimit')}><input type="number" min={64 * 1024} max={16 * 1024 * 1024} value={draft.log.maxBytes} onChange={(event) => update('log', { ...draft.log, maxBytes: Number(event.target.value) })} /></Field><Field label={t('editor.rotateCount')}><input type="number" min="1" max="10" value={draft.log.rotateCount} onChange={(event) => update('log', { ...draft.log, rotateCount: Number(event.target.value) })} /></Field><Field label={t('editor.memoryLimit')}><input type="number" min={64 * 1024} max={4 * 1024 * 1024} value={draft.log.maxMemoryBytes} onChange={(event) => update('log', { ...draft.log, maxMemoryBytes: Number(event.target.value) })} /></Field></div><p className="field-note">{t('editor.advancedNote')}</p></div>}
+      </>}
       <div className="modal-actions"><Button variant="outline" size="sm" type="button" onClick={onCancel}>{t('editor.cancel')}</Button><Button variant="primary" size="sm" type="submit" disabled={busy}>{busy ? <LoaderCircle size={15} className="spin" /> : <Check size={15} />} {busy ? t('editor.saving') : t('editor.saveService')}</Button></div>
     </form>
   </Modal>;

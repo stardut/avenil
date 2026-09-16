@@ -186,6 +186,29 @@ h1, h2, h3, p { margin: 0; }
 .theme-control .beui-select { width: 132px; flex: none; }
 .language-control { padding-top: 16px; border-top: 1px solid var(--border); }
 .language-control .beui-select { width: 156px; }
+.cli-install-panel { display: flex; flex-direction: column; gap: 13px; padding-top: 16px; border-top: 1px solid var(--border); }
+.cli-install-intro { display: flex; align-items: flex-start; gap: 10px; }
+.cli-install-icon { width: 30px; height: 30px; display: grid; flex: none; place-items: center; color: var(--accent); background: var(--accent-wash); border-radius: 8px; }
+.cli-install-intro > div { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.cli-install-intro strong { color: var(--text); font-size: 13px; font-weight: 650; }
+.cli-install-intro p { color: var(--text-muted); font-size: 11px; line-height: 1.55; }
+.cli-install-target { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 10px; color: var(--text-muted); background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 8px; font-size: 11px; }
+.cli-install-target code { overflow: hidden; color: var(--text-soft); text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.cli-install-status, .cli-install-note, .cli-install-warning { display: flex; align-items: flex-start; gap: 7px; padding: 9px 10px; border-radius: 8px; font-size: 11px; line-height: 1.5; }
+.cli-install-status.success { color: var(--green); background: var(--success-wash); border: 1px solid color-mix(in srgb, var(--green) 22%, transparent); }
+.cli-install-note { color: var(--text-soft); background: var(--accent-wash); border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent); }
+.cli-install-warning { color: var(--amber); background: var(--amber-wash); border: 1px solid color-mix(in srgb, var(--amber) 22%, transparent); }
+.cli-install-error { color: var(--red); background: var(--danger-wash); border: 1px solid color-mix(in srgb, var(--red) 22%, transparent); }
+.cli-install-error > div { display: flex; align-items: flex-start; gap: 7px; }
+.cli-install-error > .beui-button { align-self: flex-start; }
+.cli-install-loading, .cli-install-unavailable { align-items: center; color: var(--text-muted); font-size: 12px; }
+.cli-command { display: flex; flex-direction: column; gap: 6px; }
+.cli-command-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--text-muted); font-size: 11px; }
+.cli-command-head .icon-button { width: 28px; height: 28px; }
+.cli-command pre { max-height: 150px; overflow: auto; margin: 0; padding: 10px 11px; color: var(--text); background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 8px; font-size: 10px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+.cli-command code { font-family: var(--font-mono); }
+.cli-install-prompt-content { gap: 0; }
+.cli-install-prompt-content .cli-install-panel { padding-top: 0; border-top: 0; }
 
 .workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: 224px minmax(0, 1fr); overflow: hidden; }
 .sidebar { display: flex; min-height: 0; flex-direction: column; padding: 16px 12px 14px; border-right: 1px solid var(--border); background: var(--sidebar); }
@@ -411,11 +434,18 @@ h1, h2, h3, p { margin: 0; }
 .form-section-head > div { display: flex; min-width: 0; flex-direction: column; }
 .form-section-head span { color: var(--text-muted); font-size: 11px; }
 .env-list { display: flex; flex-direction: column; gap: 7px; }
-.env-row { display: grid; grid-template-columns: 1fr 1.3fr auto 34px; gap: 7px; align-items: center; }
+.env-row { display: grid; grid-template-columns: 1fr 1.3fr 34px; gap: 7px; align-items: center; }
 .env-row input { min-width: 0; font-family: var(--font-mono); font-size: 11px; }
-.secret-check { display: inline-flex; align-items: center; gap: 5px; color: var(--text-muted); font-size: 11px; white-space: nowrap; }
-.secret-check input { min-height: 0; width: 15px; height: 15px; accent-color: var(--accent); }
 .form-empty { padding: 13px; color: var(--text-muted); background: var(--surface-sunken); border: 1px dashed var(--border-strong); border-radius: 8px; font-size: 12px; text-align: center; }
+.editor-mode-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+.editor-mode-switch > span { color: var(--text-muted); font-size: 12px; }
+.editor-mode-tabs { display: inline-flex; gap: 3px; padding: 3px; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 8px; }
+.editor-mode-tabs button { min-height: 29px; display: inline-flex; align-items: center; gap: 5px; padding-inline: 9px; color: var(--text-muted); border-radius: 6px; font-size: 11px; }
+.editor-mode-tabs button.active { color: var(--text); background: var(--surface-raised); box-shadow: 0 1px 2px rgb(0 0 0 / 8%); }
+.json-editor-wrap { display: flex; min-height: 390px; flex-direction: column; gap: 8px; }
+.json-editor { width: 100%; min-height: 390px; resize: vertical; color: var(--text); background: var(--surface-sunken); border: 1px solid var(--border-strong); border-radius: 8px; font-family: var(--font-mono); font-size: 12px; line-height: 1.6; }
+.json-editor:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
+.json-editor-error { margin: 0; color: var(--red); font-size: 11px; line-height: 1.5; }
 .advanced-toggle { width: 100%; height: auto; min-height: 0; display: flex; align-items: center; justify-content: flex-start; gap: 6px; margin-top: 16px; padding: 11px 0; color: var(--text-soft); background: transparent; border-radius: 0; border-top: 1px solid var(--border); text-align: left; font-size: 12px; font-weight: 400; line-height: normal; }
 .advanced-toggle:hover:not(:disabled) { color: var(--text); background: transparent; }
 .advanced-toggle svg { transition: transform var(--fast) var(--ease); }

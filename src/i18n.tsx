@@ -243,7 +243,7 @@ const messageTable = {
     'zh-CN': '设置', en: 'Settings', ja: '設定', ko: '설정', es: 'Ajustes', fr: 'Réglages',
   },
   'settings.subtitle': {
-    'zh-CN': '调整 Avenil 的外观和语言', en: 'Adjust Avenil appearance and language', ja: 'Avenilの外観と言語を調整します', ko: 'Avenil의 모양과 언어를 조정합니다', es: 'Ajusta el aspecto y el idioma de Avenil', fr: "Ajustez l’apparence et la langue d’Avenil",
+    'zh-CN': '调整 Avenil 的外观、语言与 CLI', en: 'Adjust Avenil appearance, language, and CLI', ja: 'Avenilの外観、言語、CLIを調整します', ko: 'Avenil의 모양, 언어 및 CLI를 조정합니다', es: 'Ajusta el aspecto, el idioma y la CLI de Avenil', fr: "Ajustez l’apparence, la langue et la CLI d’Avenil",
   },
   'settings.appearance': {
     'zh-CN': '外观', en: 'Appearance', ja: '外観', ko: '모양', es: 'Apariencia', fr: 'Apparence',
@@ -290,6 +290,60 @@ const messageTable = {
   'settings.language.fr': {
     'zh-CN': 'Français', en: 'Français', ja: 'Français', ko: 'Français', es: 'Français', fr: 'Français',
   },
+  'settings.cli.title': {
+    'zh-CN': 'CLI 命令', en: 'Command-line CLI', ja: 'コマンドラインCLI', ko: '명령줄 CLI', es: 'CLI de línea de comandos', fr: 'CLI en ligne de commande',
+  },
+  'settings.cli.description': {
+    'zh-CN': '让 shell 和 AI agent 直接控制 Avenil；命令会安装到当前用户目录。', en: 'Let shells and AI agents control Avenil directly; the command is installed for the current user.', ja: 'シェルやAIエージェントからAvenilを直接操作できます。コマンドは現在のユーザー用にインストールされます。', ko: '셸과 AI 에이전트에서 Avenil을 직접 제어합니다. 명령은 현재 사용자용으로 설치됩니다.', es: 'Permite que los shells y los agentes de IA controlen Avenil directamente; el comando se instala para el usuario actual.', fr: 'Permettez aux shells et aux agents IA de contrôler Avenil directement ; la commande est installée pour l’utilisateur actuel.',
+  },
+  'settings.cli.target': {
+    'zh-CN': '命令位置', en: 'Command location', ja: 'コマンドの場所', ko: '명령 위치', es: 'Ubicación del comando', fr: 'Emplacement de la commande',
+  },
+  'settings.cli.install': {
+    'zh-CN': '安装 CLI', en: 'Install CLI', ja: 'CLIをインストール', ko: 'CLI 설치', es: 'Instalar CLI', fr: 'Installer la CLI',
+  },
+  'settings.cli.installing': {
+    'zh-CN': '正在安装…', en: 'Installing…', ja: 'インストール中…', ko: '설치 중…', es: 'Instalando…', fr: 'Installation…',
+  },
+  'settings.cli.installed': {
+    'zh-CN': 'CLI 已安装', en: 'CLI installed', ja: 'CLIをインストール済み', ko: 'CLI 설치됨', es: 'CLI instalada', fr: 'CLI installée',
+  },
+  'settings.cli.conflict': {
+    'zh-CN': '安装位置已存在其他文件：{path}', en: 'Another file already occupies the install path: {path}', ja: 'インストール先に別のファイルがあります：{path}', ko: '설치 경로에 다른 파일이 있습니다: {path}', es: 'Ya existe otro archivo en la ruta de instalación: {path}', fr: 'Un autre fichier occupe déjà le chemin d’installation : {path}',
+  },
+  'settings.cli.installCommand': {
+    'zh-CN': '安装命令', en: 'Install command', ja: 'インストールコマンド', ko: '설치 명령', es: 'Comando de instalación', fr: 'Commande d’installation',
+  },
+  'settings.cli.pathConfigured': {
+    'zh-CN': '当前应用的 PATH 已包含安装目录', en: 'The current app PATH includes the install directory', ja: '現在のアプリのPATHにインストール先が含まれています', ko: '현재 앱의 PATH에 설치 디렉터리가 포함되어 있습니다', es: 'El PATH actual de la aplicación incluye el directorio de instalación', fr: 'Le PATH actuel de l’application contient le répertoire d’installation',
+  },
+  'settings.cli.pathNotConfigured': {
+    'zh-CN': '当前 PATH 尚未包含该目录；执行下面命令后，新终端即可直接使用 avenil。', en: 'The current PATH does not include this directory; run the command below, then new terminals can use avenil directly.', ja: '現在のPATHにこのディレクトリが含まれていません。下のコマンドを実行すると、新しいターミナルでavenilを直接使えます。', ko: '현재 PATH에 이 디렉터리가 없습니다. 아래 명령을 실행하면 새 터미널에서 avenil을 바로 사용할 수 있습니다.', es: 'El PATH actual no incluye este directorio; ejecuta el comando siguiente para usar avenil directamente en los nuevos terminales.', fr: 'Le PATH actuel ne contient pas ce répertoire ; exécutez la commande ci-dessous pour utiliser avenil directement dans les nouveaux terminaux.',
+  },
+  'settings.cli.pathCommand': {
+    'zh-CN': '加入 PATH 命令', en: 'Add to PATH command', ja: 'PATHに追加するコマンド', ko: 'PATH 추가 명령', es: 'Comando para añadir al PATH', fr: 'Commande pour ajouter au PATH',
+  },
+  'settings.cli.reloadCommand': {
+    'zh-CN': '让当前终端立即生效', en: 'Apply to the current terminal', ja: '現在のターミナルに反映', ko: '현재 터미널에 적용', es: 'Aplicar al terminal actual', fr: 'Appliquer au terminal actuel',
+  },
+  'settings.cli.copyCommand': {
+    'zh-CN': '复制命令', en: 'Copy command', ja: 'コマンドをコピー', ko: '명령 복사', es: 'Copiar comando', fr: 'Copier la commande',
+  },
+  'settings.cli.loading': {
+    'zh-CN': '正在检查 CLI 安装状态…', en: 'Checking CLI installation…', ja: 'CLIのインストール状態を確認中…', ko: 'CLI 설치 상태 확인 중…', es: 'Comprobando la instalación de la CLI…', fr: 'Vérification de l’installation de la CLI…',
+  },
+  'settings.cli.unsupported': {
+    'zh-CN': '当前系统不支持本机 CLI 安装。', en: 'The current system does not support local CLI installation.', ja: '現在のシステムはローカルCLIのインストールに対応していません。', ko: '현재 시스템은 로컬 CLI 설치를 지원하지 않습니다.', es: 'El sistema actual no admite la instalación local de la CLI.', fr: 'Le système actuel ne prend pas en charge l’installation locale de la CLI.',
+  },
+  'settings.cli.firstLaunchTitle': {
+    'zh-CN': '安装 Avenil CLI', en: 'Install the Avenil CLI', ja: 'Avenil CLIをインストール', ko: 'Avenil CLI 설치', es: 'Instalar la CLI de Avenil', fr: 'Installer la CLI Avenil',
+  },
+  'settings.cli.firstLaunchSubtitle': {
+    'zh-CN': '首次启动设置', en: 'First-launch setup', ja: '初回起動の設定', ko: '첫 실행 설정', es: 'Configuración inicial', fr: 'Configuration au premier lancement',
+  },
+  'settings.cli.later': {
+    'zh-CN': '稍后再说', en: 'Maybe later', ja: '後で', ko: '나중에', es: 'Más tarde', fr: 'Plus tard',
+  },
   'transfer.menuAria': {
     'zh-CN': '导入和导出操作', en: 'Import and export actions', ja: 'インポートとエクスポートの操作', ko: '가져오기 및 내보내기 작업', es: 'Acciones de importación y exportación', fr: "Actions d’importation et d’exportation",
   },
@@ -315,7 +369,7 @@ const messageTable = {
     'zh-CN': '导出配置', en: 'Export configuration', ja: '設定をエクスポート', ko: '구성 내보내기', es: 'Exportar configuración', fr: 'Exporter la configuration',
   },
   'transfer.exportConfigHint': {
-    'zh-CN': '导出脱敏后的 JSON', en: 'Export a redacted JSON file', ja: '秘匿化したJSONをエクスポートします', ko: '민감 정보가 제거된 JSON을 내보냅니다', es: 'Exporta un JSON con los valores sensibles ocultos', fr: 'Exporte un fichier JSON avec les valeurs sensibles masquées',
+    'zh-CN': '导出当前 JSON', en: 'Export the current JSON', ja: '現在のJSONをエクスポート', ko: '현재 JSON 내보내기', es: 'Exporta el JSON actual', fr: 'Exporte le JSON actuel',
   },
   'editor.addTitle': {
     'zh-CN': '添加服务', en: 'Add service', ja: 'サービスを追加', ko: '서비스 추가', es: 'Añadir servicio', fr: 'Ajouter un service',
@@ -325,6 +379,18 @@ const messageTable = {
   },
   'editor.subtitle': {
     'zh-CN': '配置一个由 Avenil 管理的本地前台进程', en: 'Configure a local foreground process managed by Avenil', ja: 'Avenilが管理するローカルフォアグラウンドプロセスを設定します', ko: 'Avenil이 관리할 로컬 포그라운드 프로세스를 구성합니다', es: 'Configura un proceso local en primer plano administrado por Avenil', fr: 'Configurez un processus local au premier plan géré par Avenil',
+  },
+  'editor.mode': {
+    'zh-CN': '编辑模式', en: 'Edit mode', ja: '編集モード', ko: '편집 모드', es: 'Modo de edición', fr: 'Mode d’édition',
+  },
+  'editor.jsonMode': {
+    'zh-CN': 'JSON', en: 'JSON', ja: 'JSON', ko: 'JSON', es: 'JSON', fr: 'JSON',
+  },
+  'editor.formMode': {
+    'zh-CN': '表单', en: 'Form', ja: 'フォーム', ko: '양식', es: 'Formulario', fr: 'Formulaire',
+  },
+  'editor.jsonInvalid': {
+    'zh-CN': 'JSON 格式无效，请检查服务配置对象、环境变量和日志配置。', en: 'Invalid JSON. Check the service object, environment variables, and log policy.', ja: 'JSONが無効です。サービス、環境変数、ログ設定を確認してください。', ko: 'JSON이 올바르지 않습니다. 서비스, 환경 변수 및 로그 설정을 확인하세요.', es: 'JSON no válido. Revisa el servicio, las variables de entorno y la política de registros.', fr: 'JSON invalide. Vérifiez le service, les variables d’environnement et la politique de journaux.',
   },
   'editor.serviceName': {
     'zh-CN': '服务名称', en: 'Service name', ja: 'サービス名', ko: '서비스 이름', es: 'Nombre del servicio', fr: 'Nom du service',
@@ -369,7 +435,7 @@ const messageTable = {
     'zh-CN': '环境变量', en: 'Environment variables', ja: '環境変数', ko: '환경 변수', es: 'Variables de entorno', fr: "Variables d’environnement",
   },
   'editor.envDescription': {
-    'zh-CN': '导出配置时值会自动脱敏', en: 'Values are redacted automatically when exporting', ja: 'エクスポート時に値は自動的に秘匿化されます', ko: '내보낼 때 값이 자동으로 제거됩니다', es: 'Los valores se ocultan automáticamente al exportar', fr: 'Les valeurs sont masquées automatiquement lors de l’exportation',
+    'zh-CN': '启动服务时会按原值注入环境', en: 'Values are passed to the service as entered', ja: '入力した値をそのままサービスに渡します', ko: '입력한 값을 서비스에 그대로 전달합니다', es: 'Los valores se pasan al servicio tal como se introducen', fr: 'Les valeurs sont transmises au service telles qu’elles sont saisies',
   },
   'editor.addVariable': {
     'zh-CN': '添加变量', en: 'Add variable', ja: '変数を追加', ko: '변수 추가', es: 'Añadir variable', fr: 'Ajouter une variable',
@@ -379,9 +445,6 @@ const messageTable = {
   },
   'editor.valuePlaceholder': {
     'zh-CN': '值', en: 'Value', ja: '値', ko: '값', es: 'Valor', fr: 'Valeur',
-  },
-  'editor.secret': {
-    'zh-CN': '敏感', en: 'Secret', ja: '機密', ko: '민감 정보', es: 'Secreto', fr: 'Secret',
   },
   'editor.deleteVariable': {
     'zh-CN': '删除变量', en: 'Delete variable', ja: '変数を削除', ko: '변수 삭제', es: 'Eliminar variable', fr: 'Supprimer la variable',
@@ -587,6 +650,12 @@ const messageTable = {
   'toast.ideBusy': {
     'zh-CN': '正在处理 IDE 导入，请稍候。', en: 'The IDE import is being processed. Please wait.', ja: 'IDEのインポートを処理中です。しばらくお待ちください。', ko: 'IDE 가져오기를 처리 중입니다. 잠시 기다려 주세요.', es: 'Se está procesando la importación del IDE. Espera.', fr: 'Importation IDE en cours. Veuillez patienter.',
   },
+  'toast.cliInstalled': {
+    'zh-CN': 'CLI 已安装到 ~/.local/bin', en: 'CLI installed in ~/.local/bin', ja: 'CLIを~/.local/binにインストールしました', ko: 'CLI를 ~/.local/bin에 설치했습니다', es: 'CLI instalada en ~/.local/bin', fr: 'CLI installée dans ~/.local/bin',
+  },
+  'toast.cliCopyFailed': {
+    'zh-CN': '复制命令失败，请直接选择并复制下方文本', en: 'Could not copy the command; select and copy the text below manually', ja: 'コマンドをコピーできませんでした。下のテキストを選択してコピーしてください', ko: '명령을 복사하지 못했습니다. 아래 텍스트를 직접 선택해 복사하세요', es: 'No se pudo copiar el comando; selecciónalo y cópialo manualmente', fr: 'Impossible de copier la commande ; sélectionnez et copiez le texte manuellement',
+  },
   'toast.shutdownBusy': {
     'zh-CN': 'Avenil 正在停止托管服务，完成后才能添加导入配置。', en: 'Avenil is stopping managed services. You can add imported configuration when it finishes.', ja: 'Avenilが管理サービスを停止中です。完了後にインポート設定を追加できます。', ko: 'Avenil이 관리 서비스를 중지하고 있습니다. 완료되면 가져온 구성을 추가할 수 있습니다.', es: 'Avenil está deteniendo los servicios administrados. Podrás añadir configuraciones importadas cuando termine.', fr: 'Avenil arrête les services gérés. Vous pourrez ajouter la configuration importée une fois terminé.',
   },
@@ -669,7 +738,7 @@ const messageTable = {
     'zh-CN': '项目组已删除', en: 'Project deleted', ja: 'プロジェクトを削除しました', ko: '프로젝트가 삭제되었습니다', es: 'Proyecto eliminado', fr: 'Projet supprimé',
   },
   'toast.exported': {
-    'zh-CN': '环境变量值已脱敏，配置已导出。', en: 'Environment values were redacted and the configuration was exported.', ja: '環境変数の値を秘匿化して設定をエクスポートしました。', ko: '환경 변수 값을 제거하고 구성을 내보냈습니다.', es: 'Los valores de entorno se ocultaron y la configuración se exportó.', fr: 'Les valeurs d’environnement ont été masquées et la configuration a été exportée.',
+    'zh-CN': '配置已导出。', en: 'Configuration exported.', ja: '設定をエクスポートしました。', ko: '구성을 내보냈습니다.', es: 'Se exportó la configuración.', fr: 'Configuration exportée.',
   },
   'toast.configReplaced': {
     'zh-CN': '配置已整份替换', en: 'Configuration replaced', ja: '設定を置き換えました', ko: '구성이 대체되었습니다', es: 'Configuración reemplazada', fr: 'Configuration remplacée',

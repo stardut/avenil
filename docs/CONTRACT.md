@@ -16,7 +16,6 @@ type Group = {
 type EnvVar = {
   key: string;
   value: string;
-  secret: boolean;
 };
 
 type LogPolicy = {
@@ -128,6 +127,18 @@ type ExportResult = {
   notice: string;
 };
 
+type CliInstallInfo = {
+  supported: boolean;
+  installed: boolean;
+  pathConfigured: boolean;
+  linkPath: string;
+  executablePath: string;
+  installCommand: string;
+  pathCommand: string;
+  reloadCommand: string;
+  conflict: string | null;
+};
+
 type IdeImportInput = {
   projectRoot: string;         // 用户选择的项目根目录，绝对路径
 };
@@ -141,7 +152,7 @@ type IdeImportCandidate = {
   id: Id;
   name: string;
   status: "ready" | "needsInput" | "unsupported";
-  service: Service | null;     // 预览中环境值为空且 secret=true，实际值只保留在短期服务端快照
+  service: Service | null;     // 预览中保留已解析的环境变量值
   warnings: string[];
   missing: string[];
 };
@@ -170,6 +181,8 @@ config_save(config: AppConfig) -> void
 config_import_preview(json: string) -> ImportPreview
 config_import_apply(json: string) -> AppConfig
 config_export() -> ExportResult
+cli_install_info() -> CliInstallInfo
+cli_install() -> CliInstallInfo
 choose_project_directory() -> string | null
 ide_import_preview(input: IdeImportInput) -> IdeImportPreview
 ide_import_apply(preview: IdeImportPreview, selectedIds: Id[], groupName: string) -> AppConfig
@@ -197,7 +210,26 @@ quit_request_cancel() -> void
 app_quit() -> void
 ```
 
-`config_export` 只有一种行为：输出脱敏 JSON。每个环境变量保留 `key` 与 `secret`，`value` 固定为空字符串，并在 `notice` 明确提示导入前需要重新填写环境变量值。合同不提供导出完整环境值的模式。
+`config_export` 输出当前完整配置 JSON，环境变量的 `key` 与 `value` 均按当前配置保留。
+
+## CLI 控制
+
+桌面进程启动后，在同一个 app data 目录创建权限为 `0600` 的 `avenil.sock` Unix socket。CLI 是该 socket 的客户端，桌面进程仍是托管进程、日志和运行态的唯一所有者，因此 CLI 发起的动作会通过现有事件流反映到界面。socket 只接受本机用户连接，不监听 TCP，也不接管桌面进程之外的服务。
+
+请求和响应使用一行一个 JSON 的协议，当前版本为 `1`：
+
+```json
+{"version":1,"command":"status","args":{"selectors":[]}}
+{"version":1,"ok":true,"data":{"services":[]}}
+```
+
+响应成功时包含 `ok: true` 与 `data`；失败时包含 `ok: false` 与可直接展示的 `error`。CLI 的 `status`、`start`、`stop`、`restart`、`logs`、`resources`、`open`、`quit`、`config`、`group`、`service` 和 `ide` 子命令覆盖界面中的服务控制、分组操作、配置传输、日志/资源读取、URL 打开和 IDE 导入流程。服务/分组选择器支持 UUID 或精确名称；名称重复时必须使用 UUID。
+
+协议层对 `service_delete`、`group_delete`、`config_import_apply` 和 `quit` 强制要求请求顶层字段 `confirm: true`；CLI 只有在用户显式传入 `--yes` 时才发送该字段。环境变量通过普通 `--env KEY=VALUE` 传入。
+
+CLI 的 `--json` 输出面向脚本和 AI agent。配置导出保留环境变量值；`config import --yes`、`service delete --yes`、`group delete --yes` 和 `quit --yes` 是需要显式确认的写操作。未指定 `AVENIL_SOCKET` 时，macOS CLI 使用 `~/Library/Application Support/com.rundock.desktop/avenil.sock`；测试或隔离运行可通过该环境变量覆盖路径。
+
+桌面设置中的 CLI 安装只写当前用户目录 `~/.local/bin/avenil` 的软链接，不修改系统目录；如果该目录不在当前 PATH，设置页同时展示加入 `~/.zprofile` 的命令。安装路径已有其他文件时，安装拒绝覆盖并返回冲突路径。
 
 `config_import_preview` 只解析、校验和计算摘要，不写文件。UI 必须展示预览并由用户确认后再调用 `config_import_apply`；apply 是整份替换，不是合并，且必须基于同一份 JSON。只要任意服务处于 `starting`、`running`、`stopping`，或其操作锁仍在执行，preview 可以返回但 apply 必须拒绝。apply 失败不得改变原配置。
 
@@ -205,9 +237,9 @@ app_quit() -> void
 
 当前导入范围是 VS Code/Cursor 的 `node-terminal`、明确 `program` 的 `node`/`pwa-node`、使用 `runtimeExecutable: npm` 与 `runtimeArgs: run <script>` 的 Node npm 脚本、明确 `mainClass` 且工作目录下声明 `spring-boot-maven-plugin` 的 Java Spring Boot launch、明确解释器和 `program`/`module` 的 Python launch，以及 IDEA 的明确 Maven/Gradle goals/tasks。Java Spring Boot launch 转换为 Maven 前台命令；其 `preLaunchTask` 不单独执行，由 Maven 运行负责编译；Java 非空 `args` 不自动猜测参数边界，会要求在 Avenil 中确认。所有导入均按普通前台 shell 运行，不保留调试能力。`attach`、未知扩展类型、Java 缺少可识别 Maven Spring Boot 构建命令、compound、未被转换的 `postDebugTask`/`dependsOn`、`envFile`、动态变量和 IDEA before-run/JRE/远程目标会标为 `unsupported` 或 `needsInput`，不能静默丢弃。
 
-`ide_import_apply` 必须由 UI 在预览后确认调用；空选择、重复或未知 candidate、非 `ready` candidate、缺失输入、空 groupName、活跃 runtime/operation 均拒绝。apply 是当前配置的原子追加：创建一个新 Group 和所选服务，给 Group/Service 生成新 UUID，保留现有 groups/services 完全不变；失败不得写入部分结果。环境变量字面值在服务端快照中保留，预览 DTO 中统一清空并标记 `secret=true`，因此 UI 不会泄露；导入过程不会自动启动服务。
+`ide_import_apply` 必须由 UI 在预览后确认调用；空选择、重复或未知 candidate、非 `ready` candidate、缺失输入、空 groupName、活跃 runtime/operation 均拒绝。apply 是当前配置的原子追加：创建一个新 Group 和所选服务，给 Group/Service 生成新 UUID，保留现有 groups/services 完全不变；失败不得写入部分结果。环境变量字面值在服务端快照和预览 DTO 中均保留；导入过程不会自动启动服务。
 
-配置文件位于 Tauri app data 目录的 `rundock.json` 文件（保留原文件名以延续已有配置）。写入顺序是同目录临时文件、完整 flush、rename 覆盖；临时文件或 rename 失败时保留原文件并返回错误。运行中的服务禁止 `group_upsert`、`group_delete`、`service_upsert`、`service_delete` 和 `config_save`；停止、退出、失败后的服务定义才可修改或删除。
+配置文件位于 Tauri app data 目录的 `rundock.json` 文件（保留原文件名以延续已有配置）。写入顺序是同目录临时文件、完整 flush、rename 覆盖；临时文件或 rename 失败时保留原文件并返回错误。运行中的服务禁止修改或删除自身定义；`group_upsert`、`group_delete`、`config_save` 和配置导入在任意服务或操作活跃时禁止执行。停止、退出、失败后的服务定义可以修改或删除，即使其他服务仍在运行。
 
 ## 进程与状态行为
 

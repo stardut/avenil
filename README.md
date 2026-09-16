@@ -1,10 +1,14 @@
+# Avenil — Native macOS Local Development Service Manager
+
+Avenil is a native macOS app for running and monitoring local development services. Group your dev servers, start and stop them together, inspect logs and resource usage, check local ports, and import run configurations from VS Code, Cursor, and JetBrains.
+
 <p align="center">
-  <img src="docs/assets/banner.svg" alt="Avenil — A quiet place for things to run." width="100%" />
+  <img src="docs/assets/banner.svg" alt="Avenil, a native macOS local development service manager" width="100%" />
 </p>
 
 <p align="center">
-  A native macOS workspace for running local development services.<br />
-  Download it, keep services organized, and see what is running — in one place.
+  A quiet place for things to run.<br />
+  Keep local services organized and see what is running — in one place.
 </p>
 
 <p align="center">
@@ -16,9 +20,9 @@
   <a href="README.zh-CN.md">简体中文</a>
 </p>
 
-<p align="center"><strong>macOS 15+ · Apple Silicon · Early preview</strong></p>
+<p align="center"><strong>macOS 15+ · Apple Silicon · Early preview · MIT License</strong></p>
 
-![Avenil service workspace in light mode, with the log panel expanded](docs/assets/workspace-light.jpg)
+![Avenil service workspace in light mode with grouped local services](docs/assets/workspace-light.jpg)
 
 <p align="center"><sub>Actual application UI with built-in demo data. The current interface is in Simplified Chinese.</sub></p>
 
@@ -27,6 +31,14 @@
 Avenil is available as a ready-to-use macOS DMG. [Download the latest release](https://github.com/stardut/avenil/releases/latest), open it, and drag **Avenil** to **Applications**. The release app runs without Node.js, Rust, or Xcode.
 
 Current preview releases use an ad-hoc signature, so macOS may require you to approve the first launch in **System Settings → Privacy & Security**.
+
+For a guided walkthrough, see [how to manage local development services on macOS](docs/guides/manage-local-development-services-on-macos.md), [how to import IDE run configurations](docs/guides/import-ide-cursor-jetbrains-run-configurations.md), and [examples for common local services](docs/guides/run-common-local-services.md).
+
+## Who Avenil is for
+
+Avenil is for developers who run several foreground services during local development: a frontend, an API, a worker, a local database proxy, or a test server. It gives those commands a small native workspace without requiring a separate terminal window for every service.
+
+If you are looking for a macOS tool to manage multiple local dev servers, monitor their logs and ports, or keep project services together in the menu bar, Avenil is designed for that workflow.
 
 ## Why Avenil
 
@@ -49,7 +61,7 @@ Keep your editor for writing code. Let Avenil handle the everyday work of runnin
 <details>
 <summary>See dark mode</summary>
 
-![Avenil service workspace in dark mode](docs/assets/workspace-dark.jpg)
+![Avenil service workspace in dark mode with grouped local services](docs/assets/workspace-dark.jpg)
 
 </details>
 
@@ -78,7 +90,7 @@ Already have IDE run configurations? Click **从 IDE 导入** (Import from IDE),
 
 See the [usage guide](docs/USAGE.md) for configuration storage, logging, import rules, and troubleshooting.
 
-## Direction
+## Scope and direction
 
 The focus is a dependable, approachable home for local services. These are proposed next milestones, not shipped features or release commitments:
 
@@ -88,7 +100,7 @@ The focus is a dependable, approachable home for local services. These are propo
 - [ ] Better first-run guidance and actionable startup errors.
 - [ ] Broader IDE import coverage, driven by reproducible examples.
 
-The current scope is **local foreground services on macOS**. Remote hosts, container management, debuggers, and dependency orchestration are outside this release.
+The current scope is **local foreground services on macOS**. Avenil is not a remote host manager, container manager, debugger, or dependency orchestrator. Remote hosts, container management, debuggers, and dependency orchestration are outside this release.
 
 ## For contributors
 

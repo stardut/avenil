@@ -12,7 +12,7 @@ For a bug, include:
 
 Remove credentials, private paths, and environment values before sharing. IDE import reports are most useful with a minimal sanitized configuration and its expected foreground command.
 
-For a substantial feature or architectural change, describe the user problem and proposed scope before implementation. Current focus: local foreground services on macOS. The [README](README.md#direction) lists proposed next milestones.
+For a substantial feature or architectural change, describe the user problem and proposed scope before implementation. Current focus: local foreground services on macOS. The [README](README.md#scope-and-direction) lists proposed next milestones.
 
 ## Development
 

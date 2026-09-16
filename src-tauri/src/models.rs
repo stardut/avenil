@@ -15,7 +15,6 @@ pub struct Group {
 pub struct EnvVar {
     pub key: String,
     pub value: String,
-    pub secret: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

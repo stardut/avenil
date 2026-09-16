@@ -35,7 +35,7 @@ pub fn parse(text: &str, workspace: &Path) -> Result<ParsedResult, String> {
                         }
                     }
                     b"env" if in_envs => {
-                        if let (Some(key), Some(value)) = (attr(&event, b"name"), attr(&event, b"value")) { config.env.push(EnvVar { key, value, secret: true }); }
+                        if let (Some(key), Some(value)) = (attr(&event, b"name"), attr(&event, b"value")) { config.env.push(EnvVar { key, value }); }
                     }
                     b"method" => config.has_before_run = true,
                     _ => {}

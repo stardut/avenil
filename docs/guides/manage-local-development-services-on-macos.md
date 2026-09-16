@@ -66,7 +66,7 @@ Avenil owns the process groups it creates and can stop their child processes. It
 
 ## Configuration and privacy
 
-Service definitions are saved locally. Environment values are stored in local JSON and are not encrypted at rest. Exports remove environment values while preserving their key names and secret flags, so re-enter local values after importing an export.
+Service definitions are saved locally. Environment values are stored in local JSON and are not encrypted at rest. Exports include environment key/value pairs, so treat exported files as sensitive local configuration.
 
 For port checks, IDE import behavior, logs, and storage details, see the [complete usage guide](../USAGE.md).
 

@@ -75,9 +75,7 @@ pub fn preview(input: IdeImportInput) -> Result<StoredPreview, String> {
         let id = Uuid::new_v4().to_string();
         if let Some(mut service) = candidate.service.take() {
             service.id = id.clone();
-            let public = redact_preview_service(&service);
             services.insert(id.clone(), service);
-            candidate.service = Some(public);
         }
         candidates.push(IdeImportCandidate {
             id,
@@ -195,15 +193,6 @@ pub fn apply(
         .map_err(|_| "导入快照锁不可用".to_string())?
         .remove(&public.snapshot_id);
     Ok(current)
-}
-
-fn redact_preview_service(service: &Service) -> Service {
-    let mut copy = service.clone();
-    for env in &mut copy.env {
-        env.secret = true;
-        env.value.clear();
-    }
-    copy
 }
 
 pub fn choose_project_directory() -> Result<Option<String>, String> {
@@ -357,7 +346,6 @@ pub(crate) fn env_from_object(
         env.push(EnvVar {
             key: key.clone(),
             value,
-            secret: true,
         });
     }
     Ok(env)

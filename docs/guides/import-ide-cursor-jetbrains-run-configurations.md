@@ -50,7 +50,7 @@ The following configurations may be marked unsupported or require input:
 - Java configurations without enough project information.
 - Non-empty Java arguments whose boundaries cannot be determined safely.
 
-Environment values are redacted in the preview and preserved in the imported local configuration. The interface masks values marked as secret, but local configuration values are not encrypted at rest.
+Environment values are shown in the preview and preserved in the imported local configuration. Local configuration values are not encrypted at rest.
 
 ## After importing
 

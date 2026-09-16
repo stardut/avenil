@@ -1,8 +1,12 @@
+# Avenil — macOS 本地开发服务管理器
+
+Avenil 是一款原生 macOS 应用，用于运行和监控本地开发服务。你可以将前端、API、Worker 等服务按项目分组，一起启动和停止，查看日志与资源占用，检查本地端口，并从 VS Code、Cursor 和 JetBrains 导入运行配置。
+
 <p align="center">
-  <img src="docs/assets/banner.svg" alt="Avenil — A quiet place for things to run." width="100%" />
+  <img src="docs/assets/banner.svg" alt="Avenil，面向 macOS 的本地开发服务管理器" width="100%" />
 </p>
 
-<p align="center">面向本地开发服务的 macOS 桌面工作区。<br />下载即用，集中管理服务、日志与运行状态。</p>
+<p align="center">让本地服务有一个安静、清晰的运行空间。<br />集中管理服务、日志与运行状态。</p>
 
 <p align="center">
   <a href="https://github.com/stardut/avenil/releases/latest">下载最新版本</a> ·
@@ -13,9 +17,9 @@
   <a href="README.md">English</a>
 </p>
 
-<p align="center"><strong>macOS 15+ · Apple Silicon · 早期预览</strong></p>
+<p align="center"><strong>macOS 15+ · Apple Silicon · 早期预览 · MIT License</strong></p>
 
-![Avenil 浅色界面与展开的日志面板](docs/assets/workspace-light.jpg)
+![Avenil 浅色界面与按项目组织的本地服务](docs/assets/workspace-light.jpg)
 
 <p align="center"><sub>实际应用界面，使用内置演示数据。当前界面语言为简体中文。</sub></p>
 
@@ -24,6 +28,14 @@
 Avenil 提供可直接安装的 macOS DMG。[下载最新版本](https://github.com/stardut/avenil/releases/latest)，打开后将 **Avenil** 拖入“**应用程序**”即可。发布包无需安装 Node.js、Rust 或 Xcode。
 
 当前预览版本使用 ad-hoc 签名，macOS 首次启动时可能需要在“**系统设置 → 隐私与安全性**”中手动允许。
+
+如果想直接了解使用方式，可以先看[在 macOS 上管理本地开发服务](docs/guides/manage-local-development-services-on-macos.md)、[导入 IDE 运行配置](docs/guides/import-ide-cursor-jetbrains-run-configurations.md)和[常见本地服务示例](docs/guides/run-common-local-services.md)。
+
+## 适合哪些开发工作流
+
+Avenil 适合需要同时运行多个前台服务的开发者：例如一个前端、一个 API、一个 Worker、本地测试服务或数据库代理。它把这些命令放进按项目组织的原生 macOS 工作区，让你不必为每个服务单独保留一个终端窗口。
+
+如果你正在寻找一款可以在 Mac 上管理多个本地开发服务器、查看服务日志和端口状态，或把项目服务集中到菜单栏中的工具，Avenil 就是为这个工作流设计的。
 
 ## 为什么做 Avenil
 
@@ -44,7 +56,7 @@ Avenil 是为这些服务准备的桌面工作区。保存每个服务的工作�
 <details>
 <summary>查看深色模式</summary>
 
-![Avenil 深色界面](docs/assets/workspace-dark.jpg)
+![Avenil 深色界面与按项目组织的本地服务](docs/assets/workspace-dark.jpg)
 
 </details>
 
@@ -68,7 +80,7 @@ Avenil 是为这些服务准备的桌面工作区。保存每个服务的工作�
 
 配置路径、日志策略、IDE 支持范围与常见问题见 [使用指南](docs/USAGE.md)。
 
-## 接下来的方向
+## 范围与方向
 
 以下是待推进的方向，尚未实现，也不代表发布日期承诺：
 
@@ -78,7 +90,7 @@ Avenil 是为这些服务准备的桌面工作区。保存每个服务的工作�
 - [ ] 更清晰的首次使用引导和启动错误提示。
 - [ ] 根据可复现案例扩大 IDE 配置导入范围。
 
-当前范围聚焦 macOS 本地前台服务，暂不包含远程主机、容器管理、调试器或依赖编排。
+当前范围聚焦 **macOS 本地前台服务**。Avenil 不是远程主机管理器、容器管理器、调试器或依赖编排工具；远程主机、容器管理、调试器与依赖编排暂不在当前版本范围内。
 
 ## 参与贡献
 

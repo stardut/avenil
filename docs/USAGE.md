@@ -2,6 +2,8 @@
 
 [Back to the README](../README.md)
 
+Quick guides: [manage local development services](guides/manage-local-development-services-on-macos.md) · [import IDE run configurations](guides/import-ide-cursor-jetbrains-run-configurations.md) · [run common local services](guides/run-common-local-services.md)
+
 Avenil manages local foreground services on macOS. A service is a working directory, a command, a shell specification, and optional environment, port, and URL settings. Groups organize services without changing their working directories.
 
 ## Commands and process ownership

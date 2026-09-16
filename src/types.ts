@@ -9,7 +9,6 @@ export type Group = {
 export type EnvVar = {
   key: string;
   value: string;
-  secret: boolean;
 };
 
 export type LogPolicy = {
@@ -151,6 +150,18 @@ export type ExportResult = {
 };
 
 export type ShutdownState = { phase: 'stopping' | 'completed' | 'forced'; error?: string };
+
+export type CliInstallInfo = {
+  supported: boolean;
+  installed: boolean;
+  pathConfigured: boolean;
+  linkPath: string;
+  executablePath: string;
+  installCommand: string;
+  pathCommand: string;
+  reloadCommand: string;
+  conflict: string | null;
+};
 
 export const DEFAULT_LOG_POLICY: LogPolicy = {
   maxBytes: 2 * 1024 * 1024,

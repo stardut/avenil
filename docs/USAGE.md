@@ -16,6 +16,26 @@ Stopping sends `SIGTERM` to the process group, followed by `SIGKILL` if the grac
 
 Group actions are a convenience for operating on multiple services. They do not define dependencies or wait for upstream services before starting downstream services.
 
+## CLI control
+
+Keep Avenil open to use its local CLI. The desktop process remains the single owner of service processes, configuration, logs, and runtime state; the CLI sends requests through a local Unix socket and the interface receives the same runtime events.
+
+```bash
+# From a source checkout
+npm run cli -- status --json
+npm run cli -- start "API"
+npm run cli -- logs "API" --limit 100
+npm run cli -- group restart "My project"
+
+# From an installed app, choose "Install CLI" on first launch
+avenil status --json
+avenil help
+```
+
+Use exact service or group names, or UUIDs when names are ambiguous. `--json` is intended for scripts and AI agents. Configuration replacement, service/group deletion, and quitting require `--yes`; exports preserve environment values. Pass environment values with `--env KEY=VALUE`. The socket is local-only and can be overridden for isolated runs with `AVENIL_SOCKET`.
+
+The first-launch installer creates a per-user `~/.local/bin/avenil` link and does not write to system directories. If `~/.local/bin` is not already in PATH, **Settings → CLI** shows an exact idempotent command for adding it to `~/.zprofile`, plus the command to reload the current terminal.
+
 ## Ports and URLs
 
 A port is optional. If supplied:
@@ -42,7 +62,7 @@ Configuration writes use a temporary file in the same directory, flush it, and a
 
 Service definitions cannot be changed or deleted while the affected service is active. Whole-configuration saves and imports are blocked while any service or operation is active. Importing JSON requires a preview and confirmation.
 
-Environment values are stored in plain JSON. Marking a value as secret masks it in the interface; it does not encrypt the value on disk. Exports remove **all** environment values while preserving key names and secret flags. Re-enter the values after importing an exported configuration.
+Environment values are stored in plain JSON and are shown normally in the interface. They are not encrypted at rest, and exports preserve the configured values.
 
 Commands themselves are included in exports. Keep credentials in environment fields instead of embedding them in command strings.
 
@@ -68,7 +88,7 @@ Supported starting points include:
 
 Attach configurations, compound launches, unsupported task dependencies, `envFile`, dynamic variables, and unknown extensions are not silently converted. Java entries without a detectable Spring Boot Maven project still cannot determine a classpath, module path, JRE, or build command and require input. A recognized Java `preLaunchTask` is not executed separately because the generated Maven run performs the project compilation itself. Non-empty Java `args` are left for confirmation instead of guessing argument boundaries.
 
-Environment values are redacted in the preview and preserved in the imported service configuration, where the UI masks them.
+Environment values are shown normally in the preview and preserved in the imported service configuration.
 
 ## Logs and resources
 
@@ -86,6 +106,6 @@ Resource snapshots report process count, CPU, and resident memory (RSS) for the 
 | Startup is rejected | Check whether another process is already listening on the configured port. Avenil will not take over that process. |
 | Startup times out | Check the logs, the configured port, and whether the server binds to `127.0.0.1` or an address reachable through it. |
 | A service exits immediately | Confirm the command remains in the foreground and does not detach. |
-| Imported environment values are blank | JSON exports deliberately remove them. Re-enter the values locally. |
+| Imported environment values are unexpected | JSON exports preserve the configured values; verify the file before sharing it. |
 | The browser asks for the desktop runtime | Use the desktop app for real processes, or add `?preview=1` to the preview URL for demo data. |
 | An IDE entry cannot be imported | Review its missing fields and warnings. Configure the equivalent foreground command manually if needed. |

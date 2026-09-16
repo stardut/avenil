@@ -4,6 +4,7 @@ import {
   AppConfig,
   BatchAction,
   BatchActionResult,
+  CliInstallInfo,
   ExportResult,
   Group,
   IdeImportInput,
@@ -31,6 +32,8 @@ export interface AvenilApi {
   ideImportPreview(input: IdeImportInput): Promise<IdeImportPreview>;
   ideImportApply(preview: IdeImportPreview, selectedIds: string[], groupName: string): Promise<AppConfig>;
   exportConfig(): Promise<ExportResult>;
+  cliInstallInfo(): Promise<CliInstallInfo>;
+  installCli(): Promise<CliInstallInfo>;
   upsertGroup(group: Group): Promise<Group>;
   deleteGroup(groupId: string): Promise<void>;
   upsertService(service: Service): Promise<Service>;
@@ -61,6 +64,8 @@ const tauriApi: AvenilApi = {
   ideImportPreview: (input) => command<IdeImportPreview>('ide_import_preview', { input }),
   ideImportApply: (preview, selectedIds, groupName) => command<AppConfig>('ide_import_apply', { preview, selectedIds, groupName }),
   exportConfig: () => command<ExportResult>('config_export'),
+  cliInstallInfo: () => command<CliInstallInfo>('cli_install_info'),
+  installCli: () => command<CliInstallInfo>('cli_install'),
   upsertGroup: (group) => command<Group>('group_upsert', { group }),
   deleteGroup: (groupId) => command<void>('group_delete', { groupId }),
   upsertService: (service) => command<Service>('service_upsert', { service }),
@@ -96,7 +101,7 @@ const sampleGroups: Group[] = [
   { id: 'group-lab', name: '实验项目', sortOrder: 2 },
 ];
 const sampleServices: Service[] = [
-  { id: 'service-api', name: '订单 API', groupId: 'group-commerce', workdir: '/workspace/shop-api', command: 'mvn spring-boot:run', shell: { program: '/bin/zsh', args: ['-lc'] }, env: [{ key: 'SPRING_PROFILES_ACTIVE', value: 'local', secret: false }], port: 8080, url: 'http://localhost:8080', log: { maxBytes: 2 * 1024 * 1024, rotateCount: 3, maxMemoryBytes: 256 * 1024 } },
+  { id: 'service-api', name: '订单 API', groupId: 'group-commerce', workdir: '/workspace/shop-api', command: 'mvn spring-boot:run', shell: { program: '/bin/zsh', args: ['-lc'] }, env: [{ key: 'SPRING_PROFILES_ACTIVE', value: 'local' }], port: 8080, url: 'http://localhost:8080', log: { maxBytes: 2 * 1024 * 1024, rotateCount: 3, maxMemoryBytes: 256 * 1024 } },
   { id: 'service-web', name: '运营前端', groupId: 'group-commerce', workdir: '/workspace/shop-web', command: 'pnpm dev', shell: { program: '/bin/zsh', args: ['-lc'] }, env: [], port: 5173, url: 'http://localhost:5173', log: { maxBytes: 2 * 1024 * 1024, rotateCount: 3, maxMemoryBytes: 256 * 1024 } },
   { id: 'service-worker', name: '内容 Worker', groupId: 'group-content', workdir: '/workspace/content-worker', command: 'python -m worker', shell: { program: '/bin/zsh', args: ['-lc'] }, env: [], port: null, url: null, log: { maxBytes: 2 * 1024 * 1024, rotateCount: 3, maxMemoryBytes: 256 * 1024 } },
   { id: 'service-gateway', name: '内容网关', groupId: 'group-content', workdir: '/workspace/content-gateway', command: 'node server.js', shell: { program: '/bin/zsh', args: ['-lc'] }, env: [], port: 3000, url: 'http://localhost:3000', log: { maxBytes: 2 * 1024 * 1024, rotateCount: 3, maxMemoryBytes: 256 * 1024 } },
@@ -122,6 +127,7 @@ function mockApi(): AvenilApi {
   ]);
   const logs = new Map<string, LogPage>(sampleServices.map((service, index) => [service.id, { serviceId: service.id, generation: runtimes.get(service.id)?.generation ?? null, chunks: [{ serviceId: service.id, generation: runtimes.get(service.id)?.generation ?? null, seq: index + 1, stream: 'system', timestamp: now(), text: `演示数据 · ${service.name} 已准备就绪` }], nextSeq: index + 2, truncated: false, droppedChunks: 0 }]));
   const callbacks = new Map<string, Set<(payload: any) => void>>();
+  let cliInstalled = false;
   const emit = (event: string, payload: any) => callbacks.get(event)?.forEach((callback) => callback(payload));
   const delay = (ms = 220) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
@@ -133,6 +139,18 @@ function mockApi(): AvenilApi {
     emit('runtime', snapshot);
     return snapshot;
   };
+
+  const mockCliInfo = (): CliInstallInfo => ({
+    supported: true,
+    installed: cliInstalled,
+    pathConfigured: false,
+    linkPath: '~/.local/bin/avenil',
+    executablePath: '/Applications/Avenil.app/Contents/MacOS/avenil',
+    installCommand: 'mkdir -p "$HOME/.local/bin" && if [ -L "$HOME/.local/bin/avenil" ] && [ "$HOME/.local/bin/avenil" -ef \'/Applications/Avenil.app/Contents/MacOS/avenil\' ]; then :; elif [ -e "$HOME/.local/bin/avenil" ] || [ -L "$HOME/.local/bin/avenil" ]; then printf \'%s\\n\' \'Avenil CLI install path is already occupied.\' >&2; exit 1; else ln -s \'/Applications/Avenil.app/Contents/MacOS/avenil\' "$HOME/.local/bin/avenil"; fi',
+    pathCommand: 'grep -qxF \'export PATH="$HOME/.local/bin:$PATH"\' "$HOME/.zprofile" 2>/dev/null || printf \'\\n# Avenil CLI\\nexport PATH="$HOME/.local/bin:$PATH"\\n\' >> "$HOME/.zprofile"',
+    reloadCommand: 'source "$HOME/.zprofile"',
+    conflict: null,
+  });
 
   return {
     preview: true,
@@ -159,7 +177,7 @@ function mockApi(): AvenilApi {
       const projectRoot = input.projectRoot.trim();
       if (!projectRoot) throw new Error('请先选择项目根目录');
       const groupName = projectRoot.split('/').filter(Boolean).pop() || 'IDE 导入项目';
-      const service = (id: string, name: string, command: string): Service => ({ id, name, groupId: null, workdir: projectRoot, command, shell: { program: '/bin/zsh', args: ['-lc'] }, env: [{ key: 'NODE_ENV', value: 'development', secret: false }], port: null, url: null, log: { maxBytes: 2 * 1024 * 1024, rotateCount: 3, maxMemoryBytes: 256 * 1024 } });
+      const service = (id: string, name: string, command: string): Service => ({ id, name, groupId: null, workdir: projectRoot, command, shell: { program: '/bin/zsh', args: ['-lc'] }, env: [{ key: 'NODE_ENV', value: 'development' }], port: null, url: null, log: { maxBytes: 2 * 1024 * 1024, rotateCount: 3, maxMemoryBytes: 256 * 1024 } });
       return {
         snapshotId: `preview-${Date.now()}`,
         projectRoot,
@@ -183,7 +201,9 @@ function mockApi(): AvenilApi {
       emit('config', { config: clone(config) });
       return clone(config);
     },
-    exportConfig: async () => ({ json: JSON.stringify({ ...config, services: config.services.map((service) => ({ ...service, env: service.env.map((item) => ({ ...item, value: '' })) })) }, null, 2), notice: '环境变量值已脱敏，导入后需要重新填写。' }),
+    exportConfig: async () => ({ json: JSON.stringify(config, null, 2), notice: '配置已导出，环境变量值按当前配置保留。' }),
+    cliInstallInfo: async () => mockCliInfo(),
+    installCli: async () => { cliInstalled = true; return mockCliInfo(); },
     upsertGroup: async (group) => { config.groups = [...config.groups.filter((item) => item.id !== group.id), group]; emit('config', { config: clone(config) }); return group; },
     deleteGroup: async (groupId) => { config.groups = config.groups.filter((item) => item.id !== groupId); emit('config', { config: clone(config) }); },
     upsertService: async (service) => { config.services = [...config.services.filter((item) => item.id !== service.id), service]; if (!runtimes.has(service.id)) runtimes.set(service.id, emptyRuntime(service.id)); emit('config', { config: clone(config) }); return service; },

@@ -124,7 +124,7 @@ Avenil 是基于 [MIT License](LICENSE) 发布的开源项目。欢迎带来真�
 <details>
 <summary>从源码运行、预览、构建和发布</summary>
 
-如果要参与 Avenil 本身的开发，需要 macOS 15+、Apple Silicon、Xcode Command Line Tools、Rust stable、Cargo，以及 Node.js 20.x 分支至少为 **20.19** 或 **22.12+**，并安装 npm。
+如果要参与 Avenil 本身的开发，需要 macOS 15+、Apple Silicon、Xcode Command Line Tools、Rust stable、Cargo，以及 Node.js 20.x 分支至少为 **20.19**、22.x 分支至少为 **22.13**，或使用 24+，并安装 npm。
 
 在项目根目录执行：
 

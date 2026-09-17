@@ -29,7 +29,7 @@ const CLI_COMMANDS: &[&str] = &[
 
 const DEFAULT_LOG_MAX_BYTES: u64 = 2 * 1024 * 1024;
 const DEFAULT_LOG_ROTATE_COUNT: u64 = 3;
-const DEFAULT_LOG_MEMORY_BYTES: u64 = 256 * 1024;
+const DEFAULT_LOG_MEMORY_BYTES: u64 = 4 * 1024 * 1024;
 
 #[derive(Default)]
 struct GlobalOptions {
@@ -160,16 +160,17 @@ fn execute_action(
 
 fn execute_logs(raw_args: &[String], global: &GlobalOptions) -> Result<Value, String> {
     let (selectors, options) = parse_options(raw_args)?;
-    ensure_options(&options, &["after-seq", "limit"])?;
+    ensure_options(&options, &["after-seq", "limit", "search"])?;
     if selectors.len() != 1 {
         return Err("logs 需要且只接受一个服务选择器（ID 或名称）".into());
     }
     let after_seq = option_u64(&options, "after-seq")?;
     let limit = option_usize(&options, "limit")?;
+    let search = option_one(&options, "search")?;
     call(
         global,
         "logs",
-        json!({ "selectors": selectors, "afterSeq": after_seq, "limit": limit }),
+        json!({ "selectors": selectors, "afterSeq": after_seq, "limit": limit, "search": search }),
     )
 }
 
@@ -977,7 +978,8 @@ fn print_help() {
   start <服务...>                          启动一个或多个服务
   stop <服务...> [--grace-ms MS]           停止服务
   restart <服务...> [--grace-ms MS]        重启服务
-  logs <服务> [--after-seq N] [--limit N]   读取日志
+  logs <服务> [--search TEXT] [--after-seq N]
+       [--limit N]                           读取或搜索日志
   resources [服务...]                       读取资源快照
   open <服务>                               打开服务 URL
   quit --yes                                停止托管服务并退出 Avenil
@@ -1029,4 +1031,120 @@ fn fail(error: &str, code: i32, json_output: bool) -> ! {
         eprintln!("错误：{error}");
     }
     process::exit(code);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn strings(values: &[&str]) -> Vec<String> {
+        values.iter().map(|value| (*value).into()).collect()
+    }
+
+    #[test]
+    fn recognizes_cli_arguments_without_confusing_empty_app_args() {
+        assert!(!is_cli_invocation(&[]));
+        assert!(is_cli_invocation(&strings(&["cli", "status"])));
+        assert!(is_cli_invocation(&strings(&[
+            "--json",
+            "--socket",
+            "/tmp/avenil.sock",
+            "status"
+        ])));
+        assert!(is_cli_invocation(&strings(&["unknown-command"])));
+    }
+
+    #[test]
+    fn parses_global_json_and_socket_options() {
+        let (options, args) = parse_global_options(strings(&[
+            "--json",
+            "--socket",
+            "/tmp/avenil.sock",
+            "status",
+        ]))
+        .unwrap();
+
+        assert!(options.json);
+        assert_eq!(options.socket, Some(PathBuf::from("/tmp/avenil.sock")));
+        assert_eq!(args, strings(&["status"]));
+        assert_eq!(
+            parse_global_options(strings(&["--socket"])).err().unwrap(),
+            "--socket 需要路径"
+        );
+        assert_eq!(
+            parse_global_options(strings(&["--socket", ""]))
+                .err()
+                .unwrap(),
+            "--socket 路径不能为空"
+        );
+    }
+
+    #[test]
+    fn parses_command_options_and_respects_the_positional_separator() {
+        let (positionals, options) = parse_options(&strings(&[
+            "service",
+            "--yes",
+            "--group=local",
+            "--",
+            "--literal",
+        ]))
+        .unwrap();
+
+        assert_eq!(positionals, strings(&["service", "--literal"]));
+        assert_eq!(options.get("yes"), Some(&vec!["true".into()]));
+        assert_eq!(options.get("group"), Some(&vec!["local".into()]));
+        assert_eq!(
+            parse_options(&strings(&["--yes=true"])).unwrap_err(),
+            "布尔选项不能带值：--yes"
+        );
+        assert_eq!(
+            parse_options(&strings(&["--port"])).unwrap_err(),
+            "--port 需要值"
+        );
+    }
+
+    #[test]
+    fn validates_option_cardinality_and_numeric_values() {
+        let (_, options) = parse_options(&strings(&[
+            "--port",
+            "8080",
+            "--port",
+            "8081",
+            "--log-max-bytes",
+            "65536",
+        ]))
+        .unwrap();
+
+        assert_eq!(
+            option_one(&options, "port").unwrap_err(),
+            "选项 --port 只能指定一次"
+        );
+        assert_eq!(option_u64(&options, "log-max-bytes").unwrap(), Some(65536));
+        assert_eq!(
+            required_option(&options, "group").unwrap_err(),
+            "缺少必填选项 --group"
+        );
+        let (_, invalid) = parse_options(&strings(&["--port", "not-a-number"])).unwrap();
+        assert_eq!(
+            option_u64(&invalid, "port").unwrap_err(),
+            "--port 必须是非负整数"
+        );
+    }
+
+    #[test]
+    fn parses_environment_values_and_rejects_duplicate_or_malformed_keys() {
+        let mut keys = HashSet::new();
+
+        assert_eq!(
+            parse_env(" MODE = test=value ".into(), &mut keys).unwrap(),
+            json!({ "key": "MODE", "value": " test=value " })
+        );
+        assert_eq!(
+            parse_env("MODE=other".into(), &mut keys).unwrap_err(),
+            "环境变量键无效或重复：MODE"
+        );
+        assert!(parse_env("MISSING_VALUE".into(), &mut keys)
+            .unwrap_err()
+            .contains("KEY=VALUE"));
+    }
 }

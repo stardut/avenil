@@ -6,6 +6,12 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:rust": "cargo test --locked --manifest-path src-tauri/Cargo.toml",
+    "test:all": "npm test && npm run test:rust",
+    "test:acceptance": "CARGO_TARGET_DIR=\"${TMPDIR:-/tmp}/avenil-acceptance-target\" cargo run --quiet --manifest-path work/acceptance-harness/Cargo.toml",
     "preview": "vite preview",
     "cli": "cargo run --locked --manifest-path src-tauri/Cargo.toml --",
     "tauri": "tauri",
@@ -22,11 +28,16 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.8.0",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
     "@vitejs/plugin-react": "^5.0.2",
+    "@vitest/coverage-v8": "^5.0.1",
+    "jsdom": "^29.1.1",
     "typescript": "^5.9.2",
-    "vite": "^7.1.3"
+    "vite": "^7.1.3",
+    "vitest": "^5.0.1"
   },
   "description": "A quiet place for things to run. A local service workspace for macOS.",
   "license": "MIT",

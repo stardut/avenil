@@ -101,11 +101,11 @@ const sampleGroups: Group[] = [
   { id: 'group-lab', name: '实验项目', sortOrder: 2 },
 ];
 const sampleServices: Service[] = [
-  { id: 'service-api', name: '订单 API', groupId: 'group-commerce', workdir: '/workspace/shop-api', command: 'mvn spring-boot:run', shell: { program: '/bin/zsh', args: ['-lc'] }, env: [{ key: 'SPRING_PROFILES_ACTIVE', value: 'local' }], port: 8080, url: 'http://localhost:8080', log: { maxBytes: 2 * 1024 * 1024, rotateCount: 3, maxMemoryBytes: 256 * 1024 } },
-  { id: 'service-web', name: '运营前端', groupId: 'group-commerce', workdir: '/workspace/shop-web', command: 'pnpm dev', shell: { program: '/bin/zsh', args: ['-lc'] }, env: [], port: 5173, url: 'http://localhost:5173', log: { maxBytes: 2 * 1024 * 1024, rotateCount: 3, maxMemoryBytes: 256 * 1024 } },
-  { id: 'service-worker', name: '内容 Worker', groupId: 'group-content', workdir: '/workspace/content-worker', command: 'python -m worker', shell: { program: '/bin/zsh', args: ['-lc'] }, env: [], port: null, url: null, log: { maxBytes: 2 * 1024 * 1024, rotateCount: 3, maxMemoryBytes: 256 * 1024 } },
-  { id: 'service-gateway', name: '内容网关', groupId: 'group-content', workdir: '/workspace/content-gateway', command: 'node server.js', shell: { program: '/bin/zsh', args: ['-lc'] }, env: [], port: 3000, url: 'http://localhost:3000', log: { maxBytes: 2 * 1024 * 1024, rotateCount: 3, maxMemoryBytes: 256 * 1024 } },
-  { id: 'service-lab', name: '组件实验室', groupId: 'group-lab', workdir: '/workspace/lab', command: 'pnpm dev', shell: { program: '/bin/zsh', args: ['-lc'] }, env: [], port: 4173, url: 'http://localhost:4173', log: { maxBytes: 2 * 1024 * 1024, rotateCount: 3, maxMemoryBytes: 256 * 1024 } },
+  { id: 'service-api', name: '订单 API', groupId: 'group-commerce', workdir: '/workspace/shop-api', command: 'mvn spring-boot:run', shell: { program: '/bin/zsh', args: ['-lc'] }, env: [{ key: 'SPRING_PROFILES_ACTIVE', value: 'local' }], port: 8080, url: 'http://localhost:8080', log: { maxBytes: 2 * 1024 * 1024, rotateCount: 3, maxMemoryBytes: 4 * 1024 * 1024 } },
+  { id: 'service-web', name: '运营前端', groupId: 'group-commerce', workdir: '/workspace/shop-web', command: 'pnpm dev', shell: { program: '/bin/zsh', args: ['-lc'] }, env: [], port: 5173, url: 'http://localhost:5173', log: { maxBytes: 2 * 1024 * 1024, rotateCount: 3, maxMemoryBytes: 4 * 1024 * 1024 } },
+  { id: 'service-worker', name: '内容 Worker', groupId: 'group-content', workdir: '/workspace/content-worker', command: 'python -m worker', shell: { program: '/bin/zsh', args: ['-lc'] }, env: [], port: null, url: null, log: { maxBytes: 2 * 1024 * 1024, rotateCount: 3, maxMemoryBytes: 4 * 1024 * 1024 } },
+  { id: 'service-gateway', name: '内容网关', groupId: 'group-content', workdir: '/workspace/content-gateway', command: 'node server.js', shell: { program: '/bin/zsh', args: ['-lc'] }, env: [], port: 3000, url: 'http://localhost:3000', log: { maxBytes: 2 * 1024 * 1024, rotateCount: 3, maxMemoryBytes: 4 * 1024 * 1024 } },
+  { id: 'service-lab', name: '组件实验室', groupId: 'group-lab', workdir: '/workspace/lab', command: 'pnpm dev', shell: { program: '/bin/zsh', args: ['-lc'] }, env: [], port: 4173, url: 'http://localhost:4173', log: { maxBytes: 2 * 1024 * 1024, rotateCount: 3, maxMemoryBytes: 4 * 1024 * 1024 } },
 ];
 
 function clone<T>(value: T): T {
@@ -177,7 +177,7 @@ function mockApi(): AvenilApi {
       const projectRoot = input.projectRoot.trim();
       if (!projectRoot) throw new Error('请先选择项目根目录');
       const groupName = projectRoot.split('/').filter(Boolean).pop() || 'IDE 导入项目';
-      const service = (id: string, name: string, command: string): Service => ({ id, name, groupId: null, workdir: projectRoot, command, shell: { program: '/bin/zsh', args: ['-lc'] }, env: [{ key: 'NODE_ENV', value: 'development' }], port: null, url: null, log: { maxBytes: 2 * 1024 * 1024, rotateCount: 3, maxMemoryBytes: 256 * 1024 } });
+      const service = (id: string, name: string, command: string): Service => ({ id, name, groupId: null, workdir: projectRoot, command, shell: { program: '/bin/zsh', args: ['-lc'] }, env: [{ key: 'NODE_ENV', value: 'development' }], port: null, url: null, log: { maxBytes: 2 * 1024 * 1024, rotateCount: 3, maxMemoryBytes: 4 * 1024 * 1024 } });
       return {
         snapshotId: `preview-${Date.now()}`,
         projectRoot,
@@ -209,9 +209,9 @@ function mockApi(): AvenilApi {
     upsertService: async (service) => { config.services = [...config.services.filter((item) => item.id !== service.id), service]; if (!runtimes.has(service.id)) runtimes.set(service.id, emptyRuntime(service.id)); emit('config', { config: clone(config) }); return service; },
     deleteService: async (serviceId) => { config.services = config.services.filter((item) => item.id !== serviceId); runtimes.delete(serviceId); resources.delete(serviceId); logs.delete(serviceId); emit('config', { config: clone(config) }); },
     start: async (serviceId) => { updateRuntime(serviceId, 'starting'); await delay(500); return updateRuntime(serviceId, 'running'); },
-    stop: async (serviceId) => { updateRuntime(serviceId, 'stopping'); await delay(320); return updateRuntime(serviceId, 'stopped'); },
+    stop: async (serviceId) => { const snapshot = updateRuntime(serviceId, 'stopping'); void delay(320).then(() => updateRuntime(serviceId, 'stopped')); return snapshot; },
     restart: async (serviceId) => { updateRuntime(serviceId, 'stopping'); await delay(220); updateRuntime(serviceId, 'starting'); await delay(420); return updateRuntime(serviceId, 'running'); },
-    batch: async (serviceIds, action) => Promise.all(serviceIds.map(async (serviceId) => { try { const snapshot = action === 'start' ? await (async () => { updateRuntime(serviceId, 'starting'); await delay(240); return updateRuntime(serviceId, 'running'); })() : action === 'stop' ? await (async () => { updateRuntime(serviceId, 'stopping'); await delay(240); return updateRuntime(serviceId, 'stopped'); })() : await (async () => { updateRuntime(serviceId, 'stopping'); await delay(150); updateRuntime(serviceId, 'starting'); await delay(300); return updateRuntime(serviceId, 'running'); })(); return { serviceId, action, accepted: true, snapshot, error: null }; } catch (error) { return { serviceId, action, accepted: false, snapshot: null, error: String(error) }; } })),
+    batch: async (serviceIds, action) => Promise.all(serviceIds.map(async (serviceId) => { try { const snapshot = action === 'start' ? await (async () => { updateRuntime(serviceId, 'starting'); await delay(240); return updateRuntime(serviceId, 'running'); })() : action === 'stop' ? (() => { const next = updateRuntime(serviceId, 'stopping'); void delay(240).then(() => updateRuntime(serviceId, 'stopped')); return next; })() : await (async () => { updateRuntime(serviceId, 'stopping'); await delay(150); updateRuntime(serviceId, 'starting'); await delay(300); return updateRuntime(serviceId, 'running'); })(); return { serviceId, action, accepted: true, snapshot, error: null }; } catch (error) { return { serviceId, action, accepted: false, snapshot: null, error: String(error) }; } })),
     runtime: async (serviceIds) => [...runtimes.values()].filter((item) => !serviceIds || serviceIds.includes(item.serviceId)).map(clone),
     resources: async (serviceIds) => [...resources.values()].filter((item) => !serviceIds || serviceIds.includes(item.serviceId)).map(clone),
     logs: async (serviceId) => clone(logs.get(serviceId) ?? { serviceId, generation: null, chunks: [], nextSeq: 1, truncated: false, droppedChunks: 0 }),

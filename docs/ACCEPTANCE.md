@@ -55,7 +55,7 @@ SUMMARY passed=21 failed=0
 6. `running`：通过，运行态快照存在 PGID。
 7. `logs-live`：通过，收到日志 chunk 且 generation 存在。
 8. `resources`：通过，采集到进程数、CPU 和 RSS；本轮 CPU 为 `Some(1.5)`、RSS 为 `Some(2621440)`。
-9. `import-blocked-active`：通过，活跃服务导入返回错误。
+9. `import-unrelated-active`：通过，已有无关服务活跃时仍可导入新增服务；修改或删除活跃服务时返回错误。
 10. `delete-blocked-active`：通过，运行中服务删除返回错误。
 11. `stop`：通过，最终状态为 `Stopped`。
 12. `restart`：通过，返回新的 generation 且状态为 `Running`。

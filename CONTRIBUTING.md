@@ -43,11 +43,13 @@ For interface work, `npm run dev` serves a browser preview at `http://127.0.0.1:
 ## Validate your change
 
 ```bash
+npm test
 npm run build
 cargo check --locked --manifest-path src-tauri/Cargo.toml
+cargo test --locked --manifest-path src-tauri/Cargo.toml
 ```
 
-For interface changes, check light and dark appearance, keyboard focus, and the minimum 900 × 600 window size. For lifecycle, import, or persistence changes, reproduce the affected workflow in the desktop app and describe what you observed. Add targeted tests when the behavior needs automated regression coverage.
+For interface changes, check light and dark appearance, keyboard focus, and the minimum 900 × 600 window size. For lifecycle, import, or persistence changes, reproduce the affected workflow in the desktop app and describe what you observed. Add or update targeted unit tests for every changed behavior; use `npm run test:acceptance` for the core lifecycle harness when applicable.
 
 Keep changes focused. Reuse existing components, preserve meaningful errors, and avoid silently guessing a different shell, command, or environment. Update the English and Chinese READMEs together when their shared product information changes.
 

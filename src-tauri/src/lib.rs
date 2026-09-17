@@ -121,7 +121,7 @@ fn service_stop(
     grace_ms: Option<u64>,
     state: State<'_, Arc<AppState>>,
 ) -> Result<RuntimeSnapshot, String> {
-    process::stop(state.inner().clone(), service_id, grace_ms)
+    process::stop_async(state.inner().clone(), service_id, grace_ms)
 }
 
 #[tauri::command]
@@ -331,7 +331,7 @@ pub fn run() {
         .setup(move |app| {
             config::load(app.handle(), &state)?;
             let log_root = app.path().app_data_dir()?.join("logs");
-            state.logs.set_root(log_root);
+            state.logs.set_root(log_root)?;
             state.set_sink(Arc::new(events::TauriEventSink(app.handle().clone())));
             control::start(app.handle().clone(), state.clone())?;
             setup_tray(app)?;

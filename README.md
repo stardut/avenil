@@ -87,6 +87,7 @@ The desktop app exposes a local Unix socket for the CLI. Keep Avenil open (closi
 npm run cli -- status --json
 npm run cli -- start "订单 API"
 npm run cli -- logs "订单 API" --limit 100
+npm run cli -- logs "订单 API" --search "ERROR" --limit 100
 npm run cli -- group restart "电商本地环境"
 
 # With an installed app, choose "Install CLI" on first launch
@@ -94,6 +95,8 @@ avenil status --json
 ```
 
 Service and group selectors accept either UUIDs or exact names. Use `--json` for automation. Configuration replacement, service/group deletion, and quitting require an explicit `--yes`; configuration export preserves environment variable values. Run `avenil help` (or `avenil --help`) for the complete command list. The socket is local to the current Mac and is not a remote-control or network API.
+
+`logs` reads the service's retained in-memory and active/rotated disk logs. `--search TEXT` performs a case-sensitive literal match against log text across both stores; `--after-seq` and `--limit` remain available for cursor-based reads and bounded output.
 
 On first launch, Avenil can install a per-user `~/.local/bin/avenil` link without changing system directories. The same action and the exact commands for adding `~/.local/bin` to `~/.zprofile` are available later in **Settings → CLI**. Open a new terminal, or source the displayed profile command, after changing PATH.
 

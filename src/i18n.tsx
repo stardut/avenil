@@ -164,6 +164,12 @@ const messageTable = {
   'service.logs': {
     'zh-CN': '日志', en: 'Logs', ja: 'ログ', ko: '로그', es: 'Registros', fr: 'Journaux',
   },
+  'service.fullscreenLogs': {
+    'zh-CN': '全屏查看', en: 'View full screen', ja: '全画面で表示', ko: '전체 화면으로 보기', es: 'Ver en pantalla completa', fr: 'Afficher en plein écran',
+  },
+  'service.closeFullscreenLogs': {
+    'zh-CN': '关闭全屏日志', en: 'Close full-screen logs', ja: '全画面ログを閉じる', ko: '전체 화면 로그 닫기', es: 'Cerrar registros en pantalla completa', fr: 'Fermer les journaux en plein écran',
+  },
   'service.config': {
     'zh-CN': '配置', en: 'Config', ja: '設定', ko: '구성', es: 'Configuración', fr: 'Configuration',
   },
@@ -525,7 +531,7 @@ const messageTable = {
     'zh-CN': '文件校验通过，可以应用', en: 'File validated and ready to apply', ja: 'ファイルの検証に成功しました。適用できます', ko: '파일 검증이 완료되어 적용할 수 있습니다', es: 'Archivo validado y listo para aplicar', fr: 'Fichier validé et prêt à être appliqué',
   },
   'import.blocked': {
-    'zh-CN': '当前有服务正在运行，停止全部服务后才能替换配置。', en: 'Some services are running. Stop all services before replacing the configuration.', ja: '実行中のサービスがあります。設定を置き換える前にすべて停止してください。', ko: '실행 중인 서비스가 있습니다. 구성을 대체하기 전에 모두 중지하세요.', es: 'Hay servicios en ejecución. Detén todos los servicios antes de reemplazar la configuración.', fr: 'Certains services sont en cours d’exécution. Arrêtez-les tous avant de remplacer la configuration.',
+    'zh-CN': '配置中被修改或删除的服务正在运行，请先停止对应服务。', en: 'A service being changed or removed is running. Stop that service before replacing the configuration.', ja: '変更または削除するサービスが実行中です。そのサービスを停止してから設定を置き換えてください。', ko: '변경하거나 삭제할 서비스가 실행 중입니다. 해당 서비스를 중지한 후 구성을 대체하세요.', es: 'Un servicio que se va a cambiar o eliminar está en ejecución. Detén ese servicio antes de reemplazar la configuración.', fr: 'Un service à modifier ou supprimer est en cours d’exécution. Arrêtez ce service avant de remplacer la configuration.',
   },
   'import.note': {
     'zh-CN': '导入不会合并当前内容，应用后当前服务定义将被替换。', en: 'Import does not merge with the current data; applying it replaces the current service definitions.', ja: 'インポートは現在の内容と統合されません。適用すると現在のサービス定義が置き換えられます。', ko: '가져오기는 현재 내용과 병합되지 않으며, 적용하면 현재 서비스 정의가 대체됩니다.', es: 'La importación no combina los datos actuales; al aplicarla se reemplazan las definiciones de servicios.', fr: 'L’importation ne fusionne pas les données actuelles ; son application remplace les définitions de services.',
@@ -670,6 +676,9 @@ const messageTable = {
   },
   'toast.stopped': {
     'zh-CN': '服务已停止', en: 'Service stopped', ja: 'サービスを停止しました', ko: '서비스가 중지되었습니다', es: 'Servicio detenido', fr: 'Service arrêté',
+  },
+  'toast.stopRequested': {
+    'zh-CN': '服务停止请求已发送', en: 'Service stop request sent', ja: 'サービスの停止リクエストを送信しました', ko: '서비스 중지 요청을 보냈습니다', es: 'Solicitud de detención del servicio enviada', fr: 'Demande d’arrêt du service envoyée',
   },
   'toast.restartRequested': {
     'zh-CN': '服务重启请求已发送', en: 'Service restart request sent', ja: 'サービスの再起動リクエストを送信しました', ko: '서비스 다시 시작 요청을 보냈습니다', es: 'Solicitud de reinicio del servicio enviada', fr: 'Demande de redémarrage du service envoyée',

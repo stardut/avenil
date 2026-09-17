@@ -47,3 +47,12 @@ Use the following PR/MR-specific title, description, checklist, and issue-link c
 - After a successful create or update, update task frontmatter only when there is a safe, unique matching task file. Change frontmatter fields only; do not edit the task body, progress history, business sections, or checkboxes. If no safe unique task exists, report that the update was skipped and why.
 - Verify the final review URL, source-to-target branches, actual diff, English title and description, and issue-closing semantics before reporting success.
 - This workflow creates or updates a PR/MR; it does not merge the review or archive the task.
+
+## Automated Tests
+
+- 新增或修改业务逻辑时必须同时补充或更新单元测试；修复缺陷时先写能够复现问题的回归测试，再修改实现。
+- Rust 核心逻辑使用模块内 `#[cfg(test)]` 单元测试，验证配置、进程状态、日志、CLI、控制协议和导入解析等公开行为；不要只用验收脚本代替单元测试。
+- React/TypeScript 逻辑和交互使用 Vitest、jsdom 和 Testing Library；测试用户可观察的结果，不测试私有实现细节或内部调用次数。
+- 本地提交前至少运行 `npm test`、`npm run build` 和 `cargo test --locked --manifest-path src-tauri/Cargo.toml`。涉及核心服务生命周期、日志或持久化时，再运行 `npm run test:acceptance`。
+- 不能自动化的 native 窗口、托盘、真实 Tauri IPC 等场景必须保留手工验收记录，并在变更说明中写清未覆盖原因；不得把构建通过当作测试通过。
+- 测试应覆盖成功路径、输入校验、错误路径和边界条件。若确有合理原因无法补测试，必须在变更说明中明确说明风险和替代验证方式。

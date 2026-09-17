@@ -136,3 +136,49 @@ fn inspect_link(link: &Path, executable: &Path) -> (bool, Option<String>) {
 fn shell_quote(value: impl AsRef<str>) -> String {
     format!("'{}'", value.as_ref().replace('\'', "'\\''"))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shell_quote_preserves_spaces_and_single_quotes() {
+        assert_eq!(shell_quote("Avenil CLI"), "'Avenil CLI'");
+        assert_eq!(shell_quote("it's ready"), "'it'\\''s ready'");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn inspect_link_distinguishes_the_expected_target_from_conflicts() {
+        let root =
+            std::env::temp_dir().join(format!("avenil-cli-install-test-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&root).unwrap();
+        let executable = root.join("avenil");
+        let link = root.join("bin");
+        fs::write(&executable, b"binary").unwrap();
+        let executable = executable.canonicalize().unwrap();
+
+        assert_eq!(inspect_link(&link, &executable), (false, None));
+        std::os::unix::fs::symlink(&executable, &link).unwrap();
+        assert_eq!(inspect_link(&link, &executable), (true, None));
+        fs::remove_file(&link).unwrap();
+        fs::write(&link, b"occupied").unwrap();
+        assert_eq!(
+            inspect_link(&link, &executable),
+            (false, Some(link.display().to_string()))
+        );
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn inspect_describes_a_supported_installation() {
+        let info = inspect().unwrap();
+
+        assert!(info.supported);
+        assert!(info.link_path.ends_with("/.local/bin/avenil"));
+        assert!(info.install_command.contains("ln -s"));
+        assert_eq!(info.reload_command, "source \"$HOME/.zprofile\"");
+    }
+}

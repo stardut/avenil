@@ -251,9 +251,14 @@ fn start_log_threads(
     thread::spawn(move || {
         while let Ok((stream, text, generation)) = receiver.recv() {
             let sink = state.sink();
-            state
-                .logs
-                .append(&service, generation, &stream, text, sink.as_ref());
+            if let Err(error) =
+                state
+                    .logs
+                    .append(&service, generation, &stream, text, sink.as_ref())
+            {
+                state.logs.record_dropped(&service.id);
+                eprintln!("服务 {} 的日志写入失败：{error}", service.name);
+            }
         }
     });
 }
@@ -412,17 +417,64 @@ pub fn stop(
     result
 }
 
+pub fn stop_async(
+    state: Arc<AppState>,
+    service_id: Id,
+    grace_ms: Option<u64>,
+) -> Result<RuntimeSnapshot, String> {
+    state.mark_operation(&service_id)?;
+    let result = (|| {
+        let _mutation = state
+            .mutation
+            .lock()
+            .map_err(|_| "状态变更锁不可用".to_string())?;
+        request_stop_locked(&state, &service_id)
+    })();
+
+    match result {
+        Ok((Some(record), initial)) => {
+            let worker_state = state.clone();
+            let worker_service_id = service_id.clone();
+            let grace_ms = grace_ms.unwrap_or(5000);
+            thread::spawn(move || {
+                let _ = wait_for_stop(worker_state.clone(), &worker_service_id, record, grace_ms);
+                worker_state.unmark_operation(&worker_service_id);
+            });
+            Ok(initial)
+        }
+        Ok((None, snapshot)) => {
+            state.unmark_operation(&service_id);
+            Ok(snapshot)
+        }
+        Err(error) => {
+            state.unmark_operation(&service_id);
+            Err(error)
+        }
+    }
+}
+
 fn stop_locked(
     state: Arc<AppState>,
     service_id: &str,
     grace_ms: u64,
 ) -> Result<RuntimeSnapshot, String> {
+    let (record, current) = request_stop_locked(&state, service_id)?;
+    let Some(record) = record else {
+        return Ok(current);
+    };
+    wait_for_stop(state, service_id, record, grace_ms)
+}
+
+fn request_stop_locked(
+    state: &Arc<AppState>,
+    service_id: &str,
+) -> Result<(Option<Arc<RuntimeRecord>>, RuntimeSnapshot), String> {
     let record = state.runtimes.lock().unwrap().get(service_id).cloned();
     let Some(record) = record else {
-        return Ok(snapshot(&state, service_id));
+        return Ok((None, snapshot(state, service_id)));
     };
     if !state.runtime_active(service_id) {
-        return Ok(snapshot(&state, service_id));
+        return Ok((None, snapshot(state, service_id)));
     }
     record.cancel.store(true, Ordering::SeqCst);
     record.stop_requested.store(true, Ordering::SeqCst);
@@ -440,6 +492,15 @@ fn stop_locked(
             return Err(error);
         }
     }
+    Ok((Some(record), snapshot(state, service_id)))
+}
+
+fn wait_for_stop(
+    state: Arc<AppState>,
+    service_id: &str,
+    record: Arc<RuntimeRecord>,
+    grace_ms: u64,
+) -> Result<RuntimeSnapshot, String> {
     let deadline = Instant::now() + Duration::from_millis(grace_ms.clamp(1000, 30000));
     while Instant::now() < deadline {
         if record
@@ -509,6 +570,30 @@ pub fn batch(
     action: String,
     grace_ms: Option<u64>,
 ) -> Vec<BatchActionResult> {
+    if action == "stop" {
+        return service_ids
+            .into_iter()
+            .map(
+                |service_id| match stop_async(state.clone(), service_id.clone(), grace_ms) {
+                    Ok(snapshot) => BatchActionResult {
+                        service_id,
+                        action: action.clone(),
+                        accepted: true,
+                        snapshot: Some(snapshot),
+                        error: None,
+                    },
+                    Err(error) => BatchActionResult {
+                        service_id,
+                        action: action.clone(),
+                        accepted: false,
+                        snapshot: None,
+                        error: Some(error),
+                    },
+                },
+            )
+            .collect();
+    }
+
     let _mutation = state.mutation.lock().unwrap();
     let (sender, receiver) = std::sync::mpsc::channel();
     for (index, service_id) in service_ids.iter().cloned().enumerate() {
@@ -621,4 +706,169 @@ fn is_active(status: &ServiceStatus) -> bool {
         status,
         ServiceStatus::Starting | ServiceStatus::Running | ServiceStatus::Stopping
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::AppConfig;
+
+    #[test]
+    fn missing_services_return_actionable_errors() {
+        let state = AppState::new();
+
+        assert_eq!(
+            start(state.clone(), "missing".into()).unwrap_err(),
+            "服务不存在"
+        );
+        assert_eq!(
+            stop(state.clone(), "missing".into(), Some(0))
+                .unwrap()
+                .status,
+            ServiceStatus::Stopped
+        );
+        assert_eq!(
+            snapshots(&state, Some(vec!["missing".into()]))[0].status,
+            ServiceStatus::Stopped
+        );
+    }
+
+    #[test]
+    fn start_is_rejected_once_shutdown_has_started() {
+        let state = AppState::new();
+        let service = Service {
+            id: "service-1".into(),
+            name: "api".into(),
+            group_id: None,
+            workdir: "/tmp".into(),
+            command: "sleep 1".into(),
+            shell: crate::models::ShellSpec::default(),
+            env: vec![],
+            port: None,
+            url: None,
+            log: crate::models::LogPolicy::default(),
+        };
+        *state.config.lock().unwrap() = AppConfig {
+            schema_version: 1,
+            groups: vec![],
+            services: vec![service],
+        };
+        state.begin_shutdown();
+
+        assert_eq!(
+            start(state, "service-1".into()).unwrap_err(),
+            "应用正在退出，不能启动新服务"
+        );
+    }
+
+    #[test]
+    fn async_stop_returns_while_the_service_is_stopping() {
+        let state = AppState::new();
+        let service_id = "async-stop-service";
+        *state.config.lock().unwrap() = AppConfig {
+            schema_version: 1,
+            groups: vec![],
+            services: vec![Service {
+                id: service_id.into(),
+                name: "slow service".into(),
+                group_id: None,
+                workdir: "/tmp".into(),
+                command: "sleep 30".into(),
+                shell: crate::models::ShellSpec::default(),
+                env: vec![],
+                port: None,
+                url: None,
+                log: crate::models::LogPolicy::default(),
+            }],
+        };
+
+        assert_eq!(
+            start(state.clone(), service_id.into()).unwrap().status,
+            ServiceStatus::Running
+        );
+        let stopping = stop_async(state.clone(), service_id.into(), Some(30000)).unwrap();
+
+        assert_eq!(stopping.status, ServiceStatus::Stopping);
+        for _ in 0..100 {
+            if !state.active(service_id) {
+                break;
+            }
+            thread::sleep(Duration::from_millis(20));
+        }
+        assert!(!state.active(service_id));
+        assert_eq!(
+            snapshots(&state, Some(vec![service_id.into()]))[0].status,
+            ServiceStatus::Stopped
+        );
+    }
+
+    #[test]
+    fn batch_stop_returns_before_services_finish_stopping() {
+        let state = AppState::new();
+        let service_id = "batch-stop-service";
+        *state.config.lock().unwrap() = AppConfig {
+            schema_version: 1,
+            groups: vec![],
+            services: vec![Service {
+                id: service_id.into(),
+                name: "slow service".into(),
+                group_id: None,
+                workdir: "/tmp".into(),
+                command: "sleep 30".into(),
+                shell: crate::models::ShellSpec::default(),
+                env: vec![],
+                port: None,
+                url: None,
+                log: crate::models::LogPolicy::default(),
+            }],
+        };
+
+        assert_eq!(
+            start(state.clone(), service_id.into()).unwrap().status,
+            ServiceStatus::Running
+        );
+        let results = batch(
+            state.clone(),
+            vec![service_id.into()],
+            "stop".into(),
+            Some(30000),
+        );
+
+        assert_eq!(results.len(), 1);
+        assert!(results[0].accepted);
+        assert_eq!(
+            results[0].snapshot.as_ref().unwrap().status,
+            ServiceStatus::Stopping
+        );
+        for _ in 0..100 {
+            if !state.active(service_id) {
+                break;
+            }
+            thread::sleep(Duration::from_millis(20));
+        }
+        assert!(!state.active(service_id));
+        assert_eq!(
+            snapshots(&state, Some(vec![service_id.into()]))[0].status,
+            ServiceStatus::Stopped
+        );
+    }
+
+    #[test]
+    fn batch_keeps_one_result_for_each_requested_service() {
+        let state = AppState::new();
+
+        let results = batch(
+            state,
+            vec!["missing-1".into(), "missing-2".into()],
+            "start".into(),
+            Some(0),
+        );
+
+        assert_eq!(results.len(), 2);
+        assert!(results
+            .iter()
+            .all(|result| !result.accepted && result.snapshot.is_none()));
+        assert_eq!(results[0].service_id, "missing-1");
+        assert_eq!(results[1].service_id, "missing-2");
+    }
 }

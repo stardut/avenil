@@ -862,7 +862,19 @@ fn logs(state: &Arc<AppState>, args: &Value) -> Result<Value, String> {
     let service_id = resolve_service_id(state, args)?;
     let after_seq: Option<u64> = optional(args, "afterSeq")?;
     let limit: usize = optional(args, "limit")?.unwrap_or(200);
-    let mut page = state.logs.page(&service_id, after_seq, limit);
+    let search: Option<String> = optional(args, "search")?;
+    let service = state
+        .config
+        .lock()
+        .unwrap()
+        .services
+        .iter()
+        .find(|service| service.id == service_id)
+        .cloned()
+        .ok_or_else(|| "服务不存在".to_string())?;
+    let mut page = state
+        .logs
+        .query(&service, after_seq, limit, search.as_deref())?;
     page.generation = process::snapshots(state, Some(vec![service_id.clone()]))
         .first()
         .and_then(|snapshot| snapshot.generation.clone());
@@ -893,4 +905,123 @@ fn ide_apply(state: &Arc<AppState>, args: &Value) -> Result<Value, String> {
         group_name,
     )?)
     .map_err(|e| format!("编码 IDE 导入结果失败: {e}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::{AppConfig, LogPolicy, ServiceStatus};
+
+    fn service(id: &str, name: &str) -> Service {
+        Service {
+            id: id.into(),
+            name: name.into(),
+            group_id: None,
+            workdir: "/tmp".into(),
+            command: "printf ok".into(),
+            shell: ShellSpec::default(),
+            env: vec![],
+            port: None,
+            url: None,
+            log: LogPolicy::default(),
+        }
+    }
+
+    #[test]
+    fn destructive_operations_require_protocol_confirmation() {
+        assert_eq!(
+            require_confirmation(false, "删除服务").unwrap_err(),
+            "删除服务需要协议确认字段 confirm: true"
+        );
+        assert!(require_confirmation(true, "删除服务").is_ok());
+    }
+
+    #[test]
+    fn selectors_trim_empty_values_and_reject_duplicates() {
+        let args = json!({ "selectors": ["  api ", "", "worker"] });
+        assert_eq!(selectors(&args, true).unwrap(), vec!["api", "worker"]);
+
+        let duplicate = json!({ "selectors": ["api", " api "] });
+        assert_eq!(
+            selectors(&duplicate, true).unwrap_err(),
+            "服务选择器不能重复"
+        );
+        assert!(selectors(&json!({}), true)
+            .unwrap_err()
+            .contains("至少需要一个服务选择器"));
+    }
+
+    #[test]
+    fn service_selectors_support_ids_and_unique_names_but_reject_ambiguous_names() {
+        let services = vec![
+            service("service-1", "api"),
+            service("service-2", "worker"),
+            service("service-3", "api"),
+        ];
+
+        assert_eq!(
+            resolve_service_selector(&services, "service-1").unwrap(),
+            "service-1"
+        );
+        assert_eq!(
+            resolve_service_selector(&services[..2], "worker").unwrap(),
+            "service-2"
+        );
+        assert_eq!(
+            resolve_service_selector(&services, "api").unwrap_err(),
+            "服务名称不唯一，请改用 ID: api"
+        );
+        assert_eq!(
+            resolve_service_selector(&services, "missing").unwrap_err(),
+            "找不到服务: missing"
+        );
+    }
+
+    #[test]
+    fn typed_argument_helpers_report_missing_and_invalid_values() {
+        let args = json!({ "count": 3, "enabled": true, "name": "api" });
+
+        assert_eq!(required::<String>(&args, "name").unwrap(), "api");
+        assert_eq!(optional::<u64>(&args, "count").unwrap(), Some(3));
+        assert_eq!(optional::<String>(&args, "missing").unwrap(), None);
+        assert!(required::<String>(&args, "missing")
+            .unwrap_err()
+            .contains("缺少 missing"));
+        assert!(optional::<String>(&args, "enabled")
+            .unwrap_err()
+            .contains("enabled 无效"));
+        assert!(object(&Value::Null)
+            .unwrap_err()
+            .contains("必须是 JSON 对象"));
+    }
+
+    #[test]
+    fn group_and_service_status_queries_use_the_configured_selectors() {
+        let state = AppState::new();
+        let group = Group {
+            id: "group-1".into(),
+            name: "local".into(),
+            sort_order: 0,
+        };
+        let mut api = service("service-1", "api");
+        api.group_id = Some(group.id.clone());
+        *state.config.lock().unwrap() = AppConfig {
+            schema_version: 1,
+            groups: vec![group],
+            services: vec![api],
+        };
+
+        assert_eq!(resolve_group_id(&state, "local").unwrap(), "group-1");
+        assert_eq!(
+            resolve_service_ids(&state, &[], true).unwrap(),
+            vec!["service-1"]
+        );
+        let status = status(&state, &json!({ "selectors": ["api"] })).unwrap();
+        assert_eq!(status["services"][0]["runtime"]["status"], "stopped");
+        assert_eq!(status["services"][0]["group"]["name"], "local");
+        assert_eq!(
+            ServiceStatus::Stopped,
+            crate::process::snapshots(&state, Some(vec!["service-1".into()]))[0].status
+        );
+    }
 }

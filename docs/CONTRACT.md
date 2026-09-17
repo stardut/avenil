@@ -21,7 +21,7 @@ type EnvVar = {
 type LogPolicy = {
   maxBytes: number;       // 当前文件上限，默认 2 * 1024 * 1024
   rotateCount: number;    // 历史文件数，默认 3
-  maxMemoryBytes: number; // 内存 ring 上限，默认 256 * 1024
+  maxMemoryBytes: number; // 内存 ring 上限，默认 4 * 1024 * 1024
 };
 
 type ShellSpec = {
@@ -82,7 +82,7 @@ type ResourceSnapshot = {
 type LogChunk = {
   serviceId: Id;
   generation: string | null;
-  seq: number; // 每服务在当前应用会话内跨重启单调递增
+  seq: number; // 每服务在保留的磁盘日志范围内跨应用重启单调递增
   stream: "stdout" | "stderr" | "system";
   timestamp: string;
   text: string;
@@ -167,9 +167,9 @@ type IdeImportPreview = {
 };
 ```
 
-`Group` 是界面中的项目逻辑分组；它只通过 `groupId` 关联服务，与服务 `workdir` 是否相同无关。不存在的 `groupId` 不能保存，仍被服务引用的 group 不能删除。未启动服务的 `generation` 为 `null`。空列表参数表示“全部”：`runtime_snapshot()` 和 `resource_snapshot()` 返回所有服务；批量操作必须显式传非空 `serviceIds`，空数组返回空结果，不执行任何操作；`log_page` 的 `limit` 缺省为 200，后端限制为 1000。每个服务的日志 `seq` 在一次应用会话内跨重启保持单调递增。
+`Group` 是界面中的项目逻辑分组；它只通过 `groupId` 关联服务，与服务 `workdir` 是否相同无关。不存在的 `groupId` 不能保存，仍被服务引用的 group 不能删除。未启动服务的 `generation` 为 `null`。空列表参数表示“全部”：`runtime_snapshot()` 和 `resource_snapshot()` 返回所有服务；批量操作必须显式传非空 `serviceIds`，空数组返回空结果，不执行任何操作；`log_page` 的 `limit` 缺省为 200，后端限制为 1000。每个服务的日志 `seq` 会从现有磁盘日志的最大值继续递增，跨应用重启保持单调，直到对应历史文件被轮转淘汰。
 
-日志策略允许范围为 `maxBytes` 64 KiB–16 MiB、`rotateCount` 1–10、`maxMemoryBytes` 64 KiB–4 MiB；超出范围拒绝保存。默认值为单文件 2 MiB、轮转 3 个历史文件、内存 ring 256 KiB。磁盘文件按服务隔离并按大小轮转；内存和读写通道均有界，超限丢弃旧内容并反映在 `truncated`/`droppedChunks`。
+日志策略允许范围为 `maxBytes` 64 KiB–16 MiB、`rotateCount` 1–10、`maxMemoryBytes` 64 KiB–4 MiB；超出范围拒绝保存。默认值为单文件 2 MiB、轮转 3 个历史文件、内存 ring 4 MiB。磁盘文件按服务隔离并按大小轮转；内存和读写通道均有界，超限丢弃旧内容并反映在 `truncated`/`droppedChunks`。
 
 ## Commands
 
@@ -229,17 +229,19 @@ app_quit() -> void
 
 CLI 的 `--json` 输出面向脚本和 AI agent。配置导出保留环境变量值；`config import --yes`、`service delete --yes`、`group delete --yes` 和 `quit --yes` 是需要显式确认的写操作。未指定 `AVENIL_SOCKET` 时，macOS CLI 使用 `~/Library/Application Support/com.rundock.desktop/avenil.sock`；测试或隔离运行可通过该环境变量覆盖路径。
 
+`logs` CLI 固定合并读取内存 ring、当前磁盘文件和轮转文件；`--search TEXT` 对合并结果的日志正文执行大小写敏感的字面量匹配。`--after-seq` 和 `--limit` 对合并结果有效，`limit` 缺省为 200，后端最多返回 1000 个 chunk。磁盘读取按日志序号排序，并对内存与磁盘中重叠的 chunk 去重。
+
 桌面设置中的 CLI 安装只写当前用户目录 `~/.local/bin/avenil` 的软链接，不修改系统目录；如果该目录不在当前 PATH，设置页同时展示加入 `~/.zprofile` 的命令。安装路径已有其他文件时，安装拒绝覆盖并返回冲突路径。
 
-`config_import_preview` 只解析、校验和计算摘要，不写文件。UI 必须展示预览并由用户确认后再调用 `config_import_apply`；apply 是整份替换，不是合并，且必须基于同一份 JSON。只要任意服务处于 `starting`、`running`、`stopping`，或其操作锁仍在执行，preview 可以返回但 apply 必须拒绝。apply 失败不得改变原配置。
+`config_import_preview` 只解析、校验和计算摘要，不写文件。UI 必须展示预览并由用户确认后再调用 `config_import_apply`；apply 是整份替换，不是合并，且必须基于同一份 JSON。apply 只拒绝对处于 `starting`、`running`、`stopping` 或操作锁中的现有服务做修改或删除；新增服务、未受影响的服务和分组变更可以继续应用。apply 失败不得改变原配置。
 
 `ide_import_preview` 接收用户选择的项目根目录，只在该目录下自动查找 `.vscode/launch.json`、`.idea/runConfigurations/*.xml` 和 `.run/*.xml`，不递归扫描、不执行命令、不执行 IDE 宏。每个配置文件最大 2 MiB；VS Code 使用 JSONC 解析，JetBrains 使用 XML 解析。未找到配置或配置读取/解析失败时返回可读错误；同时存在多个 IDE 来源时合并到同一份预览。预览快照只在内存中保留最多 8 份，apply 只能使用对应快照，不重新读取源文件。
 
 当前导入范围是 VS Code/Cursor 的 `node-terminal`、明确 `program` 的 `node`/`pwa-node`、使用 `runtimeExecutable: npm` 与 `runtimeArgs: run <script>` 的 Node npm 脚本、明确 `mainClass` 且工作目录下声明 `spring-boot-maven-plugin` 的 Java Spring Boot launch、明确解释器和 `program`/`module` 的 Python launch，以及 IDEA 的明确 Maven/Gradle goals/tasks。Java Spring Boot launch 转换为 Maven 前台命令；其 `preLaunchTask` 不单独执行，由 Maven 运行负责编译；Java 非空 `args` 不自动猜测参数边界，会要求在 Avenil 中确认。所有导入均按普通前台 shell 运行，不保留调试能力。`attach`、未知扩展类型、Java 缺少可识别 Maven Spring Boot 构建命令、compound、未被转换的 `postDebugTask`/`dependsOn`、`envFile`、动态变量和 IDEA before-run/JRE/远程目标会标为 `unsupported` 或 `needsInput`，不能静默丢弃。
 
-`ide_import_apply` 必须由 UI 在预览后确认调用；空选择、重复或未知 candidate、非 `ready` candidate、缺失输入、空 groupName、活跃 runtime/operation 均拒绝。apply 是当前配置的原子追加：创建一个新 Group 和所选服务，给 Group/Service 生成新 UUID，保留现有 groups/services 完全不变；失败不得写入部分结果。环境变量字面值在服务端快照和预览 DTO 中均保留；导入过程不会自动启动服务。
+`ide_import_apply` 必须由 UI 在预览后确认调用；空选择、重复或未知 candidate、非 `ready` candidate、缺失输入和空 groupName 均拒绝。apply 是当前配置的原子追加：创建一个新 Group 和所选服务，给 Group/Service 生成新 UUID，保留现有 groups/services 完全不变；已有服务是否运行不影响新增导入。失败不得写入部分结果。环境变量字面值在服务端快照和预览 DTO 中均保留；导入过程不会自动启动服务。
 
-配置文件位于 Tauri app data 目录的 `rundock.json` 文件（保留原文件名以延续已有配置）。写入顺序是同目录临时文件、完整 flush、rename 覆盖；临时文件或 rename 失败时保留原文件并返回错误。运行中的服务禁止修改或删除自身定义；`group_upsert`、`group_delete`、`config_save` 和配置导入在任意服务或操作活跃时禁止执行。停止、退出、失败后的服务定义可以修改或删除，即使其他服务仍在运行。
+配置文件位于 Tauri app data 目录的 `rundock.json` 文件（保留原文件名以延续已有配置）。写入顺序是同目录临时文件、完整 flush、rename 覆盖；临时文件或 rename 失败时保留原文件并返回错误。运行中的服务禁止修改或删除自身定义；所有配置写操作只校验本次变更涉及的服务，其他服务继续运行不会阻塞新增服务、无关服务修改或分组变更。停止、退出、失败后的服务定义可以修改或删除。
 
 ## 进程与状态行为
 

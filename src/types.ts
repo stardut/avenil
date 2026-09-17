@@ -166,7 +166,7 @@ export type CliInstallInfo = {
 export const DEFAULT_LOG_POLICY: LogPolicy = {
   maxBytes: 2 * 1024 * 1024,
   rotateCount: 3,
-  maxMemoryBytes: 256 * 1024,
+  maxMemoryBytes: 4 * 1024 * 1024,
 };
 
 export function emptyRuntime(serviceId: Id): RuntimeSnapshot {

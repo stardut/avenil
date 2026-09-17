@@ -79,6 +79,7 @@ Avenil 是为这些服务准备的桌面工作区。保存每个服务的工作�
 npm run cli -- status --json
 npm run cli -- start "订单 API"
 npm run cli -- logs "订单 API" --limit 100
+npm run cli -- logs "订单 API" --search "ERROR" --limit 100
 npm run cli -- group restart "电商本地环境"
 
 # 使用已安装的 App：首次启动时选择“安装 CLI”
@@ -86,6 +87,8 @@ avenil status --json
 ```
 
 服务和分组选择器可以使用 UUID 或精确名称；自动化场景使用 `--json`。替换配置、删除服务/分组和退出应用都要求显式传入 `--yes`；配置导出会保留环境变量值。执行 `avenil help`（或 `avenil --help`）查看完整命令列表。socket 只在当前 Mac 本机可用，不是远程控制或网络 API。
+
+`logs` 会读取服务保留的内存日志，以及当前磁盘日志和轮转历史。`--search TEXT` 会在两类日志合并后的结果中按日志正文做大小写敏感的字面量匹配；`--after-seq` 和 `--limit` 仍可用于游标读取和限制输出数量。
 
 首次启动时，Avenil 可以将当前用户专用的 `~/.local/bin/avenil` 软链接安装好，不修改系统目录。之后也可以在 **设置 → CLI** 中再次执行安装，并查看将 `~/.local/bin` 加入 `~/.zprofile` 的准确命令。修改 PATH 后请打开新终端，或执行界面显示的 profile 命令让当前终端生效。
 

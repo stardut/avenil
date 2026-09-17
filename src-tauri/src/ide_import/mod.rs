@@ -420,3 +420,140 @@ pub(crate) struct ParsedResult {
     pub candidates: Vec<ParsedCandidate>,
     pub warnings: Vec<String>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::LogPolicy;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_workspace() -> PathBuf {
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("avenil-ide-test-{suffix}"));
+        fs::create_dir_all(root.join(".vscode")).unwrap();
+        root
+    }
+
+    #[test]
+    fn resolves_supported_workspace_variables_and_rejects_dynamic_ones() {
+        let workspace = Path::new("/tmp/project");
+
+        assert_eq!(
+            resolve_value("${workspaceFolder}/src", workspace).unwrap(),
+            "/tmp/project/src"
+        );
+        assert_eq!(
+            resolve_value("$PROJECT_DIR$/target", workspace).unwrap(),
+            "/tmp/project/target"
+        );
+        assert!(resolve_value("${env:PORT}", workspace)
+            .unwrap_err()
+            .contains("动态变量"));
+        assert_eq!(shell_quote("a'b"), "'a'\\''b'");
+    }
+
+    #[test]
+    fn preview_discovers_vscode_sources_and_apply_persists_selected_candidates() {
+        let root = temp_workspace();
+        fs::write(
+            root.join(".vscode/launch.json"),
+            r#"{ "configurations": [{ "name": "web", "type": "node-terminal", "request": "launch", "command": "pnpm dev" }] }"#,
+        )
+        .unwrap();
+
+        let stored = preview(IdeImportInput {
+            project_root: root.display().to_string(),
+        })
+        .unwrap();
+        assert_eq!(stored.public.sources.len(), 1);
+        assert_eq!(stored.public.sources[0].kind, "vscode");
+        assert_eq!(stored.public.candidates[0].status, "ready");
+
+        let state = AppState::new();
+        *state.config_path.lock().unwrap() = Some(root.join("avenil.json"));
+        let public = store_preview(&state, stored).unwrap();
+        let candidate_id = public.candidates[0].id.clone();
+        let result = apply(&state, &public, vec![candidate_id], "Imported".into()).unwrap();
+
+        assert_eq!(result.groups[0].name, "Imported");
+        assert_eq!(result.services.len(), 1);
+        assert_eq!(result.services[0].command, "pnpm dev");
+        assert!(state.ide_previews.lock().unwrap().is_empty());
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn apply_allows_new_services_while_an_unrelated_service_is_active() {
+        let root = temp_workspace();
+        fs::write(
+            root.join(".vscode/launch.json"),
+            r#"{ "configurations": [{ "name": "web", "type": "node-terminal", "request": "launch", "command": "pnpm dev" }] }"#,
+        )
+        .unwrap();
+
+        let stored = preview(IdeImportInput {
+            project_root: root.display().to_string(),
+        })
+        .unwrap();
+        let state = AppState::new();
+        *state.config_path.lock().unwrap() = Some(root.join("avenil.json"));
+        *state.config.lock().unwrap() = AppConfig {
+            schema_version: 1,
+            groups: vec![],
+            services: vec![Service {
+                id: "00000000-0000-0000-0000-000000000010".into(),
+                name: "existing".into(),
+                group_id: None,
+                workdir: "/tmp".into(),
+                command: "printf ready".into(),
+                shell: ShellSpec::default(),
+                env: vec![],
+                port: None,
+                url: None,
+                log: LogPolicy::default(),
+            }],
+        };
+        state
+            .mark_operation("00000000-0000-0000-0000-000000000010")
+            .unwrap();
+
+        let public = store_preview(&state, stored).unwrap();
+        let candidate_id = public.candidates[0].id.clone();
+        let result = apply(&state, &public, vec![candidate_id], "Imported".into()).unwrap();
+
+        assert_eq!(result.services.len(), 2);
+        assert_eq!(result.services[0].name, "existing");
+        assert_eq!(result.services[1].command, "pnpm dev");
+        assert!(state.active("00000000-0000-0000-0000-000000000010"));
+        state.unmark_operation("00000000-0000-0000-0000-000000000010");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn apply_rejects_empty_duplicate_and_stale_selections() {
+        let state = AppState::new();
+        let preview = IdeImportPreview {
+            snapshot_id: "missing".into(),
+            project_root: "/tmp".into(),
+            sources: vec![],
+            suggested_group_name: "tmp".into(),
+            candidates: vec![],
+            warnings: vec![],
+        };
+
+        assert_eq!(
+            apply(&state, &preview, vec![], "group".into()).unwrap_err(),
+            "至少选择一个可导入配置"
+        );
+        assert_eq!(
+            apply(&state, &preview, vec!["a".into()], " ".into()).unwrap_err(),
+            "分组名称不能为空"
+        );
+        assert!(apply(&state, &preview, vec!["a".into()], "group".into())
+            .unwrap_err()
+            .contains("导入预览已失效"));
+    }
+}

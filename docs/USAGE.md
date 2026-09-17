@@ -60,7 +60,7 @@ Avenil was previously named RunDock. The application identifier, configuration f
 
 Configuration writes use a temporary file in the same directory, flush it, and atomically rename it. A failed write preserves the previous configuration.
 
-Service definitions cannot be changed or deleted while the affected service is active. Whole-configuration saves and imports are blocked while any service or operation is active. Importing JSON requires a preview and confirmation.
+Service definitions cannot be changed or deleted while the affected service is active. Configuration saves and imports only reject changes to affected active services; adding services or changing unrelated services and groups remains allowed while other services run. Importing JSON requires a preview and confirmation.
 
 Environment values are stored in plain JSON and are shown normally in the interface. They are not encrypted at rest, and exports preserve the configured values.
 
@@ -92,9 +92,11 @@ Environment values are shown normally in the preview and preserved in the import
 
 ## Logs and resources
 
-Avenil reads stdout and stderr. In-memory logging and the read channel are bounded. The default in-memory budget is 256 KiB per service; disk logs default to 2 MiB per file with three rotated files, under the application data directory's `logs` folder.
+Avenil reads stdout and stderr. In-memory logging and the read channel are bounded. The default in-memory budget is 4 MiB per service; disk logs default to 2 MiB per file with three rotated files, under the application data directory's `logs` folder.
 
-Log events have a sequence number that increases across service restarts. Reads use a cursor; discarded data is reported as truncated.
+The CLI `logs` command reads the service's retained in-memory buffer together with its active and rotated disk files. Use `--search TEXT` for a case-sensitive literal match against log text across both stores. `--after-seq` reads chunks after a cursor, and `--limit` defaults to 200 chunks with a backend maximum of 1000.
+
+Log events have a sequence number that increases across service and application restarts while the retained disk history remains available. Reads use a cursor; discarded data is reported as truncated. Disk history is bounded by the configured file size and rotation count, and is read on demand rather than loaded into the in-memory buffer.
 
 Resource snapshots report process count, CPU, and resident memory (RSS) for the service's process group. Failed system samples are unavailable, not fabricated as zero.
 

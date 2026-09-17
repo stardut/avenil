@@ -20,6 +20,7 @@ import {
   LayoutList,
   List,
   LoaderCircle,
+  Maximize2,
   Pencil,
   Play,
   Plus,
@@ -89,7 +90,7 @@ const formatBytes = (bytes: number | null) => {
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 };
-const formatTime = (value: string | null | undefined, locale: string) => value ? new Date(value).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
+const formatTime = (value: string | null | undefined, locale: string) => value ? new Date(value).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) : '—';
 const formatCommand = (value: string) => value.length > 52 ? `${value.slice(0, 52)}…` : value;
 const uid = () => crypto.randomUUID();
 const isFocusableElement = (element: HTMLElement | null) => Boolean(element?.isConnected && element.getClientRects().length);
@@ -413,11 +414,7 @@ function App() {
     ? t('toast.ideBusy')
     : shutdownState?.phase === 'stopping'
       ? t('toast.shutdownBusy')
-      : actionIds.length
-        ? t('toast.actionBusy')
-        : config.services.some((service) => runtimeIsActive((runtimes[service.id] ?? emptyRuntime(service.id)).status))
-          ? t('toast.runningBusy')
-          : null;
+      : null;
 
   useEffect(() => {
     if (!expandedId) return;
@@ -430,12 +427,24 @@ function App() {
   const handleRuntime = async (serviceId: string, action: BatchAction) => {
     if (shutdownState?.phase === 'stopping' && action !== 'stop') return;
     if (actionIds.includes(serviceId)) return;
+    if (action === 'stop') {
+      setRuntimes((current) => {
+        const previous = current[serviceId] ?? emptyRuntime(serviceId);
+        return { ...current, [serviceId]: { ...previous, status: 'stopping', error: null } };
+      });
+    }
     setActionIds((ids) => [...ids, serviceId]);
     try {
       const snapshot = action === 'start' ? await api.start(serviceId) : action === 'stop' ? await api.stop(serviceId) : await api.restart(serviceId);
-      setRuntimes((current) => ({ ...current, [serviceId]: snapshot }));
-      notify(action === 'start' ? t('toast.startRequested') : action === 'stop' ? t('toast.stopped') : t('toast.restartRequested'), 'success');
-    } catch (reason) { notify(errorText(reason, t), 'error'); }
+      if (action !== 'stop') setRuntimes((current) => ({ ...current, [serviceId]: snapshot }));
+      notify(action === 'start' ? t('toast.startRequested') : action === 'stop' ? t('toast.stopRequested') : t('toast.restartRequested'), 'success');
+    } catch (reason) {
+      if (action === 'stop') {
+        const latest = await api.runtime([serviceId]).catch(() => []);
+        if (latest[0]) setRuntimes((current) => ({ ...current, [serviceId]: latest[0] }));
+      }
+      notify(errorText(reason, t), 'error');
+    }
     finally { setActionIds((ids) => ids.filter((id) => id !== serviceId)); }
   };
 
@@ -527,7 +536,7 @@ function App() {
 
   const handleImportApply = async () => {
     if (importApplyRef.current) return;
-    if (!importDialog?.preview.canApply || groupActive || config.services.some((service) => runtimeIsActive((runtimes[service.id] ?? emptyRuntime(service.id)).status))) return;
+    if (!importDialog?.preview.canApply) return;
     importApplyRef.current = true;
     setImportApplyBusy(true);
     try { const next = await api.importApply(importDialog.json); setConfig(next); setImportDialog(null); closeDetails(); notify(t('toast.configReplaced'), 'success'); } catch (reason) { notify(errorText(reason, t), 'error'); }
@@ -626,7 +635,7 @@ function App() {
         </Modal>}
         {editor && <ServiceEditor key="editor" initial={editor.service} isNew={editor.isNew} groups={groups} busy={serviceSubmitBusy} onCancel={() => setEditor(null)} onSubmit={(service) => void handleServiceSubmit(service)} />}
         {groupEditor && <GroupEditor key="group" initial={groupEditor.id ? groupEditor : null} busy={groupSubmitBusy} onCancel={() => setGroupEditor(null)} onDelete={groupEditor.id ? () => void handleDeleteGroup(groupEditor) : undefined} onSubmit={handleGroupSubmit} />}
-        {importDialog && <ImportDialog key="import" preview={importDialog.preview} busy={importApplyBusy} canApply={importDialog.preview.canApply && !config.services.some((service) => runtimeIsActive((runtimes[service.id] ?? emptyRuntime(service.id)).status))} onCancel={() => setImportDialog(null)} onApply={() => void handleImportApply()} />}
+        {importDialog && <ImportDialog key="import" preview={importDialog.preview} busy={importApplyBusy} canApply={importDialog.preview.canApply} onCancel={() => setImportDialog(null)} onApply={() => void handleImportApply()} />}
         {ideImportOpen && <IdeImportDialog key="ide" preview={ideImportPreview} busy={ideImportBusy} blockedReason={ideImportBlockedReason} onChooseProjectDirectory={handleChooseIdeProjectDirectory} onPreview={(input) => void handleIdeImportPreview(input)} onApply={(preview, selectedIds, groupName) => void handleIdeImportApply(preview, selectedIds, groupName)} onClearPreview={() => setIdeImportPreview(null)} onClose={() => { if (!ideImportBusy) { setIdeImportPreview(null); setIdeImportOpen(false); } }} />}
       </AnimatePresence>
       <AnimatePresence initial={false}>
@@ -791,7 +800,7 @@ function ServiceRow({ service, group, runtime, resource, expanded, logs, logMeta
       </Button>
       <div className="row-actions" onClick={(event) => event.stopPropagation()}>
         <Tooltip content={t('service.edit')} side="top"><Button variant="ghost" size="icon" className="row-icon" aria-label={t('service.edit')} onClick={onEdit}><Pencil size={14} /></Button></Tooltip>
-        {runtimeCanStop(runtime.status) ? <Button variant="ghost" size="sm" className="service-action stop" disabled={busy} onClick={() => onAction('stop')}><Square size={12} />{t('service.stop')}</Button> : <Button variant="ghost" size="sm" className="service-action start" disabled={busy || pending || shutdownBusy} onClick={() => onAction('start')}>{busy || pending ? <LoaderCircle size={13} className="spin" /> : <Play size={12} />}{t('service.start')}</Button>}
+        {runtime.status === 'stopping' ? <Button variant="ghost" size="sm" className="service-action stop" disabled><LoaderCircle size={13} className="spin" />{t('service.status.stopping')}</Button> : runtimeCanStop(runtime.status) ? <Button variant="ghost" size="sm" className="service-action stop" disabled={busy} onClick={() => onAction('stop')}><Square size={12} />{t('service.stop')}</Button> : <Button variant="ghost" size="sm" className="service-action start" disabled={busy || pending || shutdownBusy} onClick={() => onAction('start')}>{busy || pending ? <LoaderCircle size={13} className="spin" /> : <Play size={12} />}{t('service.start')}</Button>}
         <Button variant="ghost" size="icon" className="row-icon more" aria-label={expanded ? t('service.collapseDetails') : t('service.expandDetails')} aria-expanded={expanded} aria-controls={expanded ? `service-details-${service.id}` : undefined} onClick={(event) => onSelect(event.currentTarget)}><ChevronRight size={15} className={expanded ? 'expanded' : ''} /></Button>
       </div>
     </div>
@@ -807,13 +816,15 @@ function ServiceDetails({ id, service, runtime, resource, tab, setTab, logs, log
   const statusLabel = t(meta.labelKey);
   const statusDetail = runtime.error ?? (runtime.pid ? `PID ${runtime.pid}` : null);
   const logRef = useRef<HTMLDivElement>(null);
+  const [logsFullscreen, setLogsFullscreen] = useState(false);
   const reduceMotion = useReducedMotion();
   const panelTransition = reduceMotion ? { duration: 0.01 } : SPRING_PANEL;
   useEffect(() => { if (tab === 'logs' && logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [logs, tab]);
   return <motion.div id={id} className="service-details" role="region" aria-label={t('service.details', { name: service.name })} variants={DETAILS_VARIANTS} initial="initial" animate="animate" exit="exit" transition={panelTransition} onClick={(event) => event.stopPropagation()}>
-    <div className="service-details-status"><span className={`status-orb ${meta.tone}`}>{meta.icon}</span><div className="service-details-status-copy"><strong>{statusLabel}</strong>{statusDetail && <span title={statusDetail}>{statusDetail}</span>}{runtime.exitCode !== null && <small>{t('service.exitCode', { code: runtime.exitCode })}</small>}</div><div className="service-details-controls">{runtimeCanStop(runtime.status) ? <Button variant="ghost" size="sm" className="service-details-action danger-text" disabled={shutdownBusy} onClick={() => onAction('stop')}><Square size={12} />{t('service.stop')}</Button> : <Button variant="ghost" size="sm" className="service-details-action" disabled={runtimeIsActive(runtime.status) || shutdownBusy} onClick={() => void onAction('start')}><Play size={12} />{t('service.start')}</Button>}<Button variant="ghost" size="sm" className="service-details-action" disabled={runtimeIsTransitioning(runtime.status) || shutdownBusy} onClick={() => onAction('restart')}><RefreshCw size={12} />{t('service.restart')}</Button><Button variant="ghost" size="icon" className="icon-button" onClick={onEdit} aria-label={t('service.edit')}><Pencil size={15} /></Button><Button variant="ghost" size="icon" className="icon-button danger-icon" onClick={onDelete} aria-label={t('service.delete')}><Trash2 size={15} /></Button><Button variant="ghost" size="icon" className="icon-button" onClick={onClose} aria-label={t('service.closeDetails')}><X size={17} /></Button></div></div>
+    <div className="service-details-status"><span className={`status-orb ${meta.tone}`}>{runtime.status === 'stopping' ? <LoaderCircle size={15} className="spin" /> : meta.icon}</span><div className="service-details-status-copy"><strong>{statusLabel}</strong>{statusDetail && <span title={statusDetail}>{statusDetail}</span>}{runtime.exitCode !== null && <small>{t('service.exitCode', { code: runtime.exitCode })}</small>}</div><div className="service-details-controls">{runtime.status === 'stopping' ? <Button variant="ghost" size="sm" className="service-details-action danger-text" disabled><LoaderCircle size={12} className="spin" />{t('service.status.stopping')}</Button> : runtimeCanStop(runtime.status) ? <Button variant="ghost" size="sm" className="service-details-action danger-text" disabled={shutdownBusy} onClick={() => onAction('stop')}><Square size={12} />{t('service.stop')}</Button> : <Button variant="ghost" size="sm" className="service-details-action" disabled={runtimeIsActive(runtime.status) || shutdownBusy} onClick={() => void onAction('start')}><Play size={12} />{t('service.start')}</Button>}<Button variant="ghost" size="sm" className="service-details-action" disabled={runtimeIsTransitioning(runtime.status) || shutdownBusy} onClick={() => onAction('restart')}><RefreshCw size={12} />{t('service.restart')}</Button><Button variant="ghost" size="icon" className="icon-button" onClick={onEdit} aria-label={t('service.edit')}><Pencil size={15} /></Button><Button variant="ghost" size="icon" className="icon-button danger-icon" onClick={onDelete} aria-label={t('service.delete')}><Trash2 size={15} /></Button><Button variant="ghost" size="icon" className="icon-button" onClick={onClose} aria-label={t('service.closeDetails')}><X size={17} /></Button></div></div>
     <div className="service-details-tabs" role="tablist" aria-label={t('service.details')}><Button variant="ghost" size="sm" className={tab === 'logs' ? 'active' : ''} type="button" role="tab" id={`${id}-tab-logs`} aria-selected={tab === 'logs'} aria-controls={`${id}-panel`} onClick={() => setTab('logs')}>{t('service.logs')}{logs.length ? <b>{logs.length > 99 ? '99+' : logs.length}</b> : null}</Button><Button variant="ghost" size="sm" className={tab === 'config' ? 'active' : ''} type="button" role="tab" id={`${id}-tab-config`} aria-selected={tab === 'config'} aria-controls={`${id}-panel`} onClick={() => setTab('config')}>{t('service.config')}</Button><Button variant="ghost" size="sm" className={tab === 'metrics' ? 'active' : ''} type="button" role="tab" id={`${id}-tab-metrics`} aria-selected={tab === 'metrics'} aria-controls={`${id}-panel`} onClick={() => setTab('metrics')}>{t('service.metrics')}</Button></div>
-    <div className="service-details-body" id={`${id}-panel`} role="tabpanel" aria-labelledby={`${id}-tab-${tab}`}>{tab === 'config' && <ConfigView service={service} onOpenUrl={onOpenUrl} />}{tab === 'logs' && <LogView logs={logs} meta={logMeta} containerRef={logRef} />}{tab === 'metrics' && <MetricsView runtime={runtime} resource={resource} />}</div>
+    <div className="service-details-body" id={`${id}-panel`} role="tabpanel" aria-labelledby={`${id}-tab-${tab}`}>{tab === 'config' && <ConfigView service={service} onOpenUrl={onOpenUrl} />}{tab === 'logs' && <LogView logs={logs} meta={logMeta} containerRef={logRef} onFullscreen={() => setLogsFullscreen(true)} />}{tab === 'metrics' && <MetricsView runtime={runtime} resource={resource} />}</div>
+    {logsFullscreen && <LogFullscreen serviceName={service.name} logs={logs} meta={logMeta} onClose={() => setLogsFullscreen(false)} />}
   </motion.div>;
 }
 
@@ -824,9 +835,47 @@ function ConfigView({ service, onOpenUrl }: { service: Service; onOpenUrl: () =>
 
 function InfoLine({ label, value, mono }: { label: string; value: string; mono?: boolean }) { return <div className="info-line"><span>{label}</span><strong className={mono ? 'mono' : ''} title={value}>{value}</strong></div>; }
 
-function LogView({ logs, meta, containerRef }: { logs: LogChunk[]; meta?: { truncated: boolean; droppedChunks: number }; containerRef: React.RefObject<HTMLDivElement | null> }) {
+function LogView({ logs, meta, containerRef, onFullscreen }: { logs: LogChunk[]; meta?: { truncated: boolean; droppedChunks: number }; containerRef: React.RefObject<HTMLDivElement | null>; onFullscreen: () => void }) {
   const { locale, t } = useI18n();
-  return <div className="log-view">{meta?.truncated && <div className="log-warning"><AlertCircle size={14} />{t('service.logWarning')}{meta.droppedChunks ? t('service.logDropped', { count: meta.droppedChunks }) : ''}</div>}<div className="log-console" ref={containerRef}>{logs.length ? logs.map((chunk) => <div className={`log-line ${chunk.stream}`} key={`${chunk.seq}-${chunk.timestamp}`}><span className="log-seq">{String(chunk.seq).padStart(4, '0')}</span><span className="log-time">{formatTime(chunk.timestamp, locale)}</span><span className="log-stream">{chunk.stream}</span><code>{chunk.text}</code></div>) : <div className="empty-inline"><TerminalSquare size={18} /><span>{t('service.logsEmpty')}</span></div>}</div></div>;
+  return <div className="log-view"><div className="log-view-toolbar"><span>{t('service.logs')}</span><Button variant="ghost" size="sm" className="log-fullscreen-action" onClick={onFullscreen}><Maximize2 size={14} />{t('service.fullscreenLogs')}</Button></div>{meta?.truncated && <div className="log-warning"><AlertCircle size={14} />{t('service.logWarning')}{meta.droppedChunks ? t('service.logDropped', { count: meta.droppedChunks }) : ''}</div>}<div className="log-console" ref={containerRef}>{renderLogContent(logs, locale, t)}</div></div>;
+}
+
+function renderLogContent(logs: LogChunk[], locale: string, t: Translator) {
+  return logs.length ? logs.map((chunk) => <div className={`log-line ${chunk.stream}`} key={`${chunk.seq}-${chunk.timestamp}`}><span className="log-seq">{String(chunk.seq).padStart(4, '0')}</span><span className="log-time">{formatTime(chunk.timestamp, locale)}</span><span className="log-stream">{chunk.stream}</span><code>{chunk.text}</code></div>) : <div className="empty-inline"><TerminalSquare size={18} /><span>{t('service.logsEmpty')}</span></div>;
+}
+
+function LogFullscreen({ serviceName, logs, meta, onClose }: { serviceName: string; logs: LogChunk[]; meta?: { truncated: boolean; droppedChunks: number }; onClose: () => void }) {
+  const { locale, t } = useI18n();
+  const { dialogRef, onKeyDown } = useDialogFocus();
+  const logRef = useRef<HTMLDivElement>(null);
+  const reduceMotion = useReducedMotion();
+  const fadeTransition = reduceMotion ? { duration: 0.01 } : FADE_TRANSITION;
+  const panelTransition = reduceMotion ? { duration: 0.01 } : SPRING_PANEL;
+
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.stopPropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleEscape, true);
+    return () => window.removeEventListener('keydown', handleEscape, true);
+  }, [onClose]);
+
+  useEffect(() => {
+    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+  }, [logs]);
+
+  return typeof document === 'undefined' ? null : createPortal(
+    <motion.div className="log-fullscreen-backdrop" role="presentation" variants={MODAL_BACKDROP_VARIANTS} initial="initial" animate="animate" exit="exit" transition={fadeTransition}>
+      <motion.section ref={dialogRef} className="log-fullscreen" variants={MODAL_VARIANTS} initial="initial" animate="animate" exit="exit" transition={panelTransition} role="dialog" aria-modal="true" aria-label={`${serviceName} ${t('service.logs')}`} onKeyDown={onKeyDown}>
+        <header className="log-fullscreen-head"><div className="log-fullscreen-title"><TerminalSquare size={18} /><div><h2>{serviceName}</h2><span>{t('service.logs')}</span></div></div><Button variant="ghost" size="icon" className="icon-button" onClick={onClose} aria-label={t('service.closeFullscreenLogs')}><X size={18} /></Button></header>
+        <div className="log-fullscreen-body">{meta?.truncated && <div className="log-warning"><AlertCircle size={14} />{t('service.logWarning')}{meta.droppedChunks ? t('service.logDropped', { count: meta.droppedChunks }) : ''}</div>}<div className="log-console log-console-fullscreen" ref={logRef}>{renderLogContent(logs, locale, t)}</div></div>
+      </motion.section>
+    </motion.div>,
+    document.body,
+  );
 }
 
 function MetricsView({ runtime, resource }: { runtime: RuntimeSnapshot; resource: ResourceSnapshot | null }) {

@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 pub type Id = String;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Group {
     pub id: Id,
@@ -10,14 +10,14 @@ pub struct Group {
     pub sort_order: i32,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct EnvVar {
     pub key: String,
     pub value: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LogPolicy {
     pub max_bytes: u64,
@@ -27,11 +27,15 @@ pub struct LogPolicy {
 
 impl Default for LogPolicy {
     fn default() -> Self {
-        Self { max_bytes: 2 * 1024 * 1024, rotate_count: 3, max_memory_bytes: 256 * 1024 }
+        Self {
+            max_bytes: 2 * 1024 * 1024,
+            rotate_count: 3,
+            max_memory_bytes: 4 * 1024 * 1024,
+        }
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ShellSpec {
     pub program: String,
@@ -40,11 +44,14 @@ pub struct ShellSpec {
 
 impl Default for ShellSpec {
     fn default() -> Self {
-        Self { program: "/bin/zsh".into(), args: vec!["-lc".into()] }
+        Self {
+            program: "/bin/zsh".into(),
+            args: vec!["-lc".into()],
+        }
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Service {
     pub id: Id,
@@ -59,7 +66,7 @@ pub struct Service {
     pub log: LogPolicy,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct AppConfig {
     pub schema_version: u32,
@@ -68,12 +75,26 @@ pub struct AppConfig {
 }
 
 impl Default for AppConfig {
-    fn default() -> Self { Self { schema_version: 1, groups: vec![], services: vec![] } }
+    fn default() -> Self {
+        Self {
+            schema_version: 1,
+            groups: vec![],
+            services: vec![],
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
-pub enum ServiceStatus { Stopped, Starting, Running, Stopping, Exited, Failed, Unknown }
+pub enum ServiceStatus {
+    Stopped,
+    Starting,
+    Running,
+    Stopping,
+    Exited,
+    Failed,
+    Unknown,
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -92,7 +113,18 @@ pub struct RuntimeSnapshot {
 
 impl RuntimeSnapshot {
     pub fn stopped(service_id: Id) -> Self {
-        Self { service_id, generation: None, status: ServiceStatus::Stopped, pid: None, pgid: None, started_at: None, ended_at: None, exit_code: None, signal: None, error: None }
+        Self {
+            service_id,
+            generation: None,
+            status: ServiceStatus::Stopped,
+            pid: None,
+            pgid: None,
+            started_at: None,
+            ended_at: None,
+            exit_code: None,
+            signal: None,
+            error: None,
+        }
     }
 }
 
@@ -162,7 +194,10 @@ pub struct BatchActionResult {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ExportResult { pub json: String, pub notice: String }
+pub struct ExportResult {
+    pub json: String,
+    pub notice: String,
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

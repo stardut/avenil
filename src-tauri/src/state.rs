@@ -136,3 +136,50 @@ pub fn is_active_status(status: &crate::models::ServiceStatus) -> bool {
             | crate::models::ServiceStatus::Stopping
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::ServiceStatus;
+
+    #[test]
+    fn only_transitional_and_running_states_are_active() {
+        assert!(!is_active_status(&ServiceStatus::Stopped));
+        assert!(is_active_status(&ServiceStatus::Starting));
+        assert!(is_active_status(&ServiceStatus::Running));
+        assert!(is_active_status(&ServiceStatus::Stopping));
+        assert!(!is_active_status(&ServiceStatus::Exited));
+        assert!(!is_active_status(&ServiceStatus::Failed));
+        assert!(!is_active_status(&ServiceStatus::Unknown));
+    }
+
+    #[test]
+    fn an_operation_can_only_be_claimed_once_until_released() {
+        let state = AppState::new();
+
+        assert!(state.mark_operation("service-1").is_ok());
+        assert_eq!(
+            state.mark_operation("service-1").unwrap_err(),
+            "该服务已有操作正在执行"
+        );
+        assert!(state.active("service-1"));
+
+        state.unmark_operation("service-1");
+        assert!(!state.active("service-1"));
+    }
+
+    #[test]
+    fn shutdown_and_quit_flags_follow_their_lifecycle() {
+        let state = AppState::new();
+
+        assert!(state.begin_shutdown());
+        assert!(!state.begin_shutdown());
+        state.abort_shutdown();
+        assert!(state.begin_shutdown());
+
+        state.request_quit();
+        assert!(state.has_quit_request());
+        state.clear_quit_request();
+        assert!(!state.has_quit_request());
+    }
+}

@@ -136,7 +136,7 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow, project st
 <details>
 <summary>Run, preview, build, or publish from source</summary>
 
-To develop Avenil itself, use macOS 15 or later on Apple Silicon, Xcode Command Line Tools, Rust stable and Cargo, and Node.js **20.19+ on the 20.x line, or 22.12+**, with npm.
+To develop Avenil itself, use macOS 15 or later on Apple Silicon, Xcode Command Line Tools, Rust stable and Cargo, and Node.js **20.19+ on the 20.x line, 22.13+ on the 22.x line, or 24+**, with npm.
 
 From the repository root:
 

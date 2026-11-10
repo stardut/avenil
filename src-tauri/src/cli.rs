@@ -509,7 +509,11 @@ fn service_options_payload(
     options: &HashMap<String, Vec<String>>,
     update: bool,
 ) -> Result<ServiceOptionsPayload, String> {
-    let group_selector = option_one(options, "group")?;
+    let group_selector = if update {
+        option_one(options, "group")?
+    } else {
+        Some(required_option(options, "group")?)
+    };
     let port = match option_one(options, "port")? {
         Some(value) => Some(Some(
             value
@@ -992,7 +996,7 @@ fn print_help() {
   group {{start|stop|restart}} <分组>         操作分组内所有服务
   service list                              查看所有服务
   service get <服务>                        查看服务配置
-  service add --name NAME --workdir DIR --command CMD [选项]
+  service add --name NAME --workdir DIR --command CMD --group NAME|ID [选项]
   service update <服务> [选项]              更新服务配置
   service delete <服务> --yes               删除服务配置
   config show                              查看配置
@@ -1011,6 +1015,7 @@ service add/update 选项：
   --group NAME|ID  --port PORT  --url URL  --shell-program PATH
   --shell-arg ARG（可重复）  --env KEY=VALUE
   --log-max-bytes BYTES  --log-rotate-count N  --log-memory-bytes BYTES
+service add 必须指定一个已存在的项目；service update 可省略 --group。
   update 还支持 --no-group --no-port --no-url --clear-env
 
 选择器既可以是服务/分组 ID，也可以是名称；名称重复时请改用 ID。
@@ -1129,6 +1134,43 @@ mod tests {
             option_u64(&invalid, "port").unwrap_err(),
             "--port 必须是非负整数"
         );
+    }
+
+    #[test]
+    fn service_add_requires_a_nonempty_project_group() {
+        let isolated_global = GlobalOptions {
+            socket: Some(PathBuf::from("/dev/null")),
+            ..GlobalOptions::default()
+        };
+        let base = strings(&[
+            "--name",
+            "api",
+            "--workdir",
+            "/tmp/project",
+            "--command",
+            "npm run dev",
+        ]);
+        assert_eq!(
+            execute_service_add(&base, &isolated_global).unwrap_err(),
+            "缺少必填选项 --group"
+        );
+
+        let mut empty_group = base;
+        empty_group.extend(strings(&["--group", "  "]));
+        assert_eq!(
+            execute_service_add(&empty_group, &isolated_global).unwrap_err(),
+            "缺少必填选项 --group"
+        );
+
+        let (_, options) = parse_options(&strings(&["--group", "audit-series-intl"])).unwrap();
+        let payload = service_options_payload(&options, false).unwrap();
+        assert_eq!(payload.group_selector.as_deref(), Some("audit-series-intl"));
+
+        let (_, update_options) = parse_options(&[]).unwrap();
+        assert!(service_options_payload(&update_options, true)
+            .unwrap()
+            .group_selector
+            .is_none());
     }
 
     #[test]
